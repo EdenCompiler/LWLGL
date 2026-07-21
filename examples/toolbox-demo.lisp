@@ -7,15 +7,15 @@
          (rotated (lwlgl.math:quat-rotate-vector rotation (lwlgl.math:vec3 1 0 0)))
          (mesh (lwlgl.obj:parse-obj
                 "v -1 0 0
-v 1 0 0
-v 1 1 0
-v -1 1 0
-vt 0 0
-vt 1 0
-vt 1 1
-vt 0 1
-f 1/1 2/2 3/3 4/4
-"
+                 v 1 0 0
+                 v 1 1 0
+                 v -1 1 0
+                 vt 0 0
+                 vt 1 0
+                 vt 1 1
+                 vt 0 1
+                 f 1/1 2/2 3/3 4/4
+                "
                 :source "inline-quad.obj"))
          (profiler (lwlgl.util:make-profiler)))
     (lwlgl.util:with-profiled-section (profiler :small-workload)
