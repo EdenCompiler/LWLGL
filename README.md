@@ -1,6 +1,6 @@
 # LWLGL — Lightweight Lisp Game Library
 
-> Languages / Idiomas: English · Português do Brasil
+> **Languages / Idiomas:** [English](#english) · [Português do Brasil](#português-do-brasil)
 
 ---
 
