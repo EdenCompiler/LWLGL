@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Added planes, bounding spheres, ray/sphere intersection, sphere/AABB tests, frustum extraction from OpenGL clip matrices, and point/sphere/AABB frustum culling helpers.
+- Added deterministic delta-driven timer queues with one-shot and repeating timers, pause/resume, cancellation, queue time scaling, and bounded catch-up.
+- Added composite input bindings with `CHORD-BINDING` and `ANY-BINDING`, plus normalized two-dimensional digital axes through `BIND-AXIS2` / `AXIS2-VALUE`.
+- Expanded the asset manager with bulk preloading, cached-asset metadata inspection, and reload listeners for development-time hot-reload workflows.
+- Expanded the device-free test suite for spatial queries, timers, composite bindings, and 2D axes.
+- Updated the English and Brazilian Portuguese documentation for the new 0.4 APIs and migration path.
+
 ## 0.3.2
 
 - Fixed a Linux Wayland crash path where GLFW could load libdecor's GTK decoration plugin inside SBCL and corrupt the process during window startup. LWLGL now disables libdecor by default on detected Wayland sessions when supported by the runtime GLFW version.

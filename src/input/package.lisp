@@ -8,7 +8,8 @@
    #:mouse-position #:mouse-delta #:scroll-delta
    #:input-focused-p #:text-input #:consume-text-input
    ;; Named actions and digital axes
-   #:action-map #:make-action-map #:key-binding #:mouse-binding
+   #:action-map #:make-action-map #:key-binding #:mouse-binding #:chord-binding #:any-binding
    #:bind-action #:add-action-binding #:unbind-action #:action-bindings
    #:action-down-p #:action-pressed-p #:action-released-p #:action-map-names
-   #:bind-axis #:unbind-axis #:axis-value #:axis-map-names))
+   #:bind-axis #:unbind-axis #:axis-value #:axis-map-names
+   #:bind-axis2 #:unbind-axis2 #:axis2-value #:axis2-map-names))

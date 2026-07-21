@@ -27,7 +27,7 @@
 
 (defun test-platform ()
   (check (member (lwlgl.core:platform) '(:windows :macos :linux :unknown)))
-  (check (string= "0.3.2" lwlgl.core:*lwlgl-version*)))
+  (check (string= "0.4.0" lwlgl.core:*lwlgl-version*)))
 
 (defun test-vectors ()
   (let* ((a (lwlgl.math:vec3 1 2 3))
@@ -71,6 +71,70 @@
       (check (approximately= 4.0 near))
       (check (approximately= 6.0 far)))))
 
+
+(defun test-spatial-query ()
+  (let* ((ball (lwlgl.math:sphere (lwlgl.math:vec3 0 0 0) 1.0))
+         (ray (lwlgl.math:ray (lwlgl.math:vec3 -5 0 0) (lwlgl.math:vec3 1 0 0)))
+         (box (lwlgl.math:aabb (lwlgl.math:vec3 -0.5 -0.5 -0.5)
+                               (lwlgl.math:vec3 0.5 0.5 0.5))))
+    (check (lwlgl.math:sphere-contains-point-p ball (lwlgl.math:vec3 0.5 0 0)))
+    (check (lwlgl.math:sphere-intersects-aabb-p ball box))
+    (multiple-value-bind (near far) (lwlgl.math:ray-sphere-intersection ray ball)
+      (check (approximately= 4.0 near))
+      (check (approximately= 6.0 far)))
+    (let* ((projection (lwlgl.math:perspective-mat4
+                        (lwlgl.math:degrees->radians 90) 1.0 1.0 10.0))
+           (frustum (lwlgl.math:frustum-from-matrix projection)))
+      (check (lwlgl.math:frustum-contains-point-p frustum (lwlgl.math:vec3 0 0 -5)))
+      (check (not (lwlgl.math:frustum-contains-point-p frustum (lwlgl.math:vec3 10 0 -5))))
+      (check (lwlgl.math:frustum-intersects-sphere-p
+              frustum (lwlgl.math:sphere (lwlgl.math:vec3 0 0 -5) 1.0)))
+      (check (lwlgl.math:frustum-intersects-aabb-p
+              frustum
+              (lwlgl.math:aabb (lwlgl.math:vec3 -1 -1 -6)
+                               (lwlgl.math:vec3 1 1 -4)))))))
+
+(defun test-timers ()
+  (let ((queue (lwlgl.util:make-timer-queue))
+        (once 0)
+        (repeated 0))
+    (lwlgl.util:schedule-timer queue 0.5d0 (lambda () (incf once)))
+    (let ((repeat-id
+            (lwlgl.util:schedule-repeating-timer
+             queue 0.25d0 (lambda () (incf repeated)))))
+      (check (= 3 (lwlgl.util:advance-timers queue 0.5d0)))
+      (check (= once 1))
+      (check (= repeated 2))
+      (check (lwlgl.util:timer-active-p queue repeat-id))
+      (lwlgl.util:cancel-timer queue repeat-id)
+      (lwlgl.util:advance-timers queue 1.0d0)
+      (check (= repeated 2)))))
+
+(defun test-input-composites ()
+  (let* ((state (lwlgl.input:make-input-state))
+         (map (lwlgl.input:make-action-map))
+         (ctrl (lwlgl.input:key-binding lwlgl.glfw:key-left-control))
+         (s-key (lwlgl.input:key-binding lwlgl.glfw:key-s)))
+    (setf (gethash lwlgl.glfw:key-left-control (lwlgl.input::input-state-keys-down state)) t
+          (gethash lwlgl.glfw:key-s (lwlgl.input::input-state-keys-down state)) t
+          (gethash lwlgl.glfw:key-s (lwlgl.input::input-state-keys-pressed state)) t)
+    (lwlgl.input:bind-action map :save (lwlgl.input:chord-binding ctrl s-key))
+    (check (lwlgl.input:action-down-p map state :save))
+    (check (lwlgl.input:action-pressed-p map state :save))
+    (remhash lwlgl.glfw:key-s (lwlgl.input::input-state-keys-down state))
+    (lwlgl.input:bind-axis2
+     map :move
+     (lwlgl.input:key-binding lwlgl.glfw:key-a)
+     (lwlgl.input:key-binding lwlgl.glfw:key-d)
+     (lwlgl.input:key-binding lwlgl.glfw:key-s)
+     (lwlgl.input:key-binding lwlgl.glfw:key-w)
+     :normalize t)
+    (setf (gethash lwlgl.glfw:key-d (lwlgl.input::input-state-keys-down state)) t
+          (gethash lwlgl.glfw:key-w (lwlgl.input::input-state-keys-down state)) t)
+    (multiple-value-bind (x y) (lwlgl.input:axis2-value map state :move)
+      (check (approximately= x (/ 1.0 (sqrt 2.0))))
+      (check (approximately= y (/ 1.0 (sqrt 2.0)))))))
+
 (defun test-fixed-step ()
   (let ((stepper (lwlgl.util:make-fixed-step :hz 10.0d0))
         (calls 0))
@@ -107,10 +171,25 @@ f 1/1 2/2 3/3 4/4
     (check (lwlgl.obj:obj-mesh-has-texcoords-p mesh))))
 
 (defun test-assets ()
-  (let ((manager (lwlgl.assets:make-asset-manager :roots nil)))
-    (lwlgl.assets:register-asset-loader manager "txt" #'lwlgl.assets:load-text-file)
-    (check (functionp (lwlgl.assets:asset-loader manager "TXT")))
-    (check (= 0 (lwlgl.assets:asset-cache-size manager)))))
+  (let* ((manager (lwlgl.assets:make-asset-manager :roots nil))
+         (path (merge-pathnames
+                (format nil "lwlgl-test-~D-~D.txt" (get-universal-time) (random 1000000))
+                (uiop:temporary-directory)))
+         (listener (lambda (manager path value)
+                     (declare (ignore manager path value)))))
+    (unwind-protect
+         (progn
+           (with-open-file (stream path :direction :output :if-exists :supersede :if-does-not-exist :create)
+             (write-string "hello" stream))
+           (lwlgl.assets:register-asset-loader manager "txt" #'lwlgl.assets:load-text-file)
+           (check (functionp (lwlgl.assets:asset-loader manager "TXT")))
+           (check (= 0 (lwlgl.assets:asset-cache-size manager)))
+           (check (equal '("hello") (lwlgl.assets:preload-assets manager (list path))))
+           (check (= 1 (lwlgl.assets:asset-cache-size manager)))
+           (check (= 1 (length (lwlgl.assets:cached-assets manager))))
+           (lwlgl.assets:add-asset-reload-listener manager listener)
+           (lwlgl.assets:remove-asset-reload-listener manager listener))
+      (ignore-errors (delete-file path)))))
 
 (defun run-tests ()
   (setf *failures* 0 *checks* 0)
@@ -121,6 +200,9 @@ f 1/1 2/2 3/3 4/4
   (test-matrices)
   (test-quaternions)
   (test-geometry)
+  (test-spatial-query)
+  (test-timers)
+  (test-input-composites)
   (test-fixed-step)
   (test-profiler)
   (test-obj)

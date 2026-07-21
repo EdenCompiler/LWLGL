@@ -12,7 +12,8 @@
 (defstruct (asset-manager (:constructor %make-asset-manager))
   (roots '())
   (loaders (make-hash-table :test #'equalp))
-  (cache (make-hash-table :test #'equal)))
+  (cache (make-hash-table :test #'equal))
+  (reload-listeners '()))
 
 (defun make-asset-manager (&key (roots (list #P"./")))
   (let ((manager (%make-asset-manager)))
@@ -126,6 +127,39 @@
          (when (and date (not (eql date (asset-entry-write-date entry))))
            (setf (asset-entry-value entry) (funcall (asset-entry-loader entry) (asset-entry-path entry))
                  (asset-entry-write-date entry) date)
+           (dolist (listener (copy-list (asset-manager-reload-listeners manager)))
+             (funcall listener manager (asset-entry-path entry) (asset-entry-value entry)))
            (push (asset-entry-path entry) changed))))
      (asset-manager-cache manager))
     (nreverse changed)))
+
+(defun cached-assets (manager)
+  "Returns metadata plists for all cached assets, sorted by pathname."
+  (let ((entries '()))
+    (maphash
+     (lambda (key entry)
+       (declare (ignore key))
+       (push (list :path (asset-entry-path entry)
+                   :write-date (asset-entry-write-date entry)
+                   :loader (asset-entry-loader entry))
+             entries))
+     (asset-manager-cache manager))
+    (sort entries #'string< :key (lambda (entry) (namestring (getf entry :path))))))
+
+(defun preload-assets (manager requests &key loader (reload-if-changed t))
+  "Loads REQUESTS in order and returns their values as a list."
+  (mapcar (lambda (request)
+            (load-asset manager request :loader loader :reload-if-changed reload-if-changed))
+          requests))
+
+(defun add-asset-reload-listener (manager function)
+  "Registers FUNCTION to receive (MANAGER PATH VALUE) after a cached asset is reloaded."
+  (check-type function function)
+  (pushnew function (asset-manager-reload-listeners manager) :test #'eq)
+  manager)
+
+(defun remove-asset-reload-listener (manager function)
+  (setf (asset-manager-reload-listeners manager)
+        (remove function (asset-manager-reload-listeners manager) :test #'eq))
+  manager)
+

@@ -75,11 +75,17 @@ Scoped helpers use `UNWIND-PROTECT` so cleanup also happens during non-local exi
 
 `lwlgl/math` is pure Lisp and does not depend on a native math library. `MAT4` values are 16-element single-float arrays in column-major order, so they can be uploaded directly with `SET-UNIFORM-MAT4`.
 
-The math layer provides runtime fundamentals rather than a physics engine: vectors, matrices, quaternions, transform/projection helpers, AABBs and rays.
+The math layer provides runtime fundamentals rather than a physics engine: vectors, matrices, quaternions, transform/projection helpers, AABBs, rays, planes, spheres, and frustums. Frustums are extracted from OpenGL-style clip matrices and expose point/sphere/AABB visibility tests suitable for renderer-side culling without imposing scene ownership.
 
 ## Timing model
 
 `lwlgl/util` uses Common Lisp internal real time for a monotonic process-relative clock. `FRAME-CLOCK` tracks frame delta, elapsed time, frame count and an FPS estimate. `FIXED-STEP` separates simulation ticks from rendering and caps catch-up iterations to avoid an unbounded spiral of death.
+
+`TIMER-QUEUE` is deliberately delta-driven instead of owning a thread or sleeping. Applications advance it from their existing frame/simulation clock. One-shot and repeating timers support cancellation, per-timer pause/resume, queue-wide pause/time scaling, and bounded catch-up. This preserves deterministic testability and leaves threading policy to the application.
+
+## Input composition
+
+`lwlgl/input` keeps device state separate from action interpretation. `KEY-BINDING` and `MOUSE-BINDING` are leaf descriptors; `CHORD-BINDING` and `ANY-BINDING` compose them recursively without installing additional native callbacks. `BIND-AXIS2` stores four directional binding sets and returns X/Y as multiple values, avoiding a dependency from the input system back into `lwlgl/math`.
 
 ## Expansion strategy
 
@@ -88,7 +94,7 @@ The handwritten API is organized so large generated bindings can be added later 
 
 ## Assets, formats and integration
 
-`lwlgl/assets` is intentionally independent of rendering. It resolves logical asset names against search roots, dispatches extension-based loaders, caches results, and can detect modification-time changes for development workflows. It is polling-based rather than an OS file-watcher abstraction.
+`lwlgl/assets` is intentionally independent of rendering. It resolves logical asset names against search roots, dispatches extension-based loaders, caches results, supports ordered bulk preloading and cache metadata inspection, and can detect modification-time changes for development workflows. Reload listeners provide a small notification hook after polling-based refreshes without turning the module into an OS file-watcher abstraction.
 
 `lwlgl/obj` parses a focused Wavefront geometry subset into an indexed interleaved representation. `lwlgl/gfx` is the optional bridge that uploads that representation, expands GLSL includes, creates file-backed shader programs, and uploads stb-decoded images. Keeping this bridge separate prevents the core bindings from turning into a renderer.
 

@@ -21,5 +21,10 @@
    ;; Geometry
    #:aabb #:aabb-p #:aabb-min #:aabb-max #:aabb-from-points #:aabb-center #:aabb-extents #:aabb-size
    #:aabb-contains-point-p #:aabb-intersects-p #:transform-aabb
-   #:ray #:ray-p #:ray-origin #:ray-direction #:ray-at #:ray-aabb-intersection
+   #:ray #:ray-p #:ray-origin #:ray-direction #:ray-at #:ray-aabb-intersection #:ray-sphere-intersection
+   #:plane #:plane-p #:plane-normal #:plane-distance #:plane-distance-to-point
+   #:sphere #:sphere-p #:sphere-center #:sphere-radius #:sphere-contains-point-p
+   #:sphere-intersects-sphere-p #:sphere-intersects-aabb-p
+   #:frustum #:frustum-p #:frustum-planes #:frustum-from-matrix
+   #:frustum-contains-point-p #:frustum-intersects-sphere-p #:frustum-intersects-aabb-p
    #:degrees->radians #:radians->degrees))

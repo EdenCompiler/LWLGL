@@ -1,4 +1,4 @@
-# Guia da API LWLGL 0.3
+# Guia da API LWLGL 0.4
 
 ## Core
 
@@ -33,6 +33,24 @@
 ```
 
 Também há `AABB`, `RAY`, interseção ray/AABB, projeção e unprojection de pontos para picking e bounds.
+
+A 0.4 adiciona planos, esferas de bounding, interseção ray/esfera e frustum culling:
+
+```lisp
+(let* ((projecao (lwlgl.math:perspective-mat4
+                  (lwlgl.math:degrees->radians 60)
+                  (/ 16.0 9.0) 0.1 100.0))
+       (view (lwlgl.math:look-at-mat4
+              (lwlgl.math:vec3 0 2 5)
+              (lwlgl.math:vec3 0 0 0)
+              (lwlgl.math:vec3 0 1 0)))
+       (frustum (lwlgl.math:frustum-from-matrix
+                 (lwlgl.math:mat4-mul projecao view)))
+       (bounds (lwlgl.math:sphere (lwlgl.math:vec3 0 0 0) 2.0)))
+  (lwlgl.math:frustum-intersects-sphere-p frustum bounds))
+```
+
+`FRUSTUM-INTERSECTS-AABB-P`, `FRUSTUM-CONTAINS-POINT-P`, `SPHERE-INTERSECTS-AABB-P` e `RAY-SPHERE-INTERSECTION` cobrem consultas comuns de visibilidade e picking.
 
 ## Profiling
 
@@ -81,6 +99,22 @@ Monitores e gamepads:
 
 `MAKE-FIXED-STEP` + `ADVANCE-FIXED-STEP` ajudam a separar simulação fixa da renderização.
 
+### Timers determinísticos
+
+```lisp
+(let ((timers (lwlgl.util:make-timer-queue :max-catch-up 4)))
+  (lwlgl.util:schedule-timer timers 1.0d0 #'mostrar-mensagem)
+  (defparameter *timer-spawn*
+    (lwlgl.util:schedule-repeating-timer timers 0.25d0 #'criar-particula))
+
+  (lwlgl.util:advance-timers timers dt)
+  (lwlgl.util:pause-timer timers *timer-spawn*)
+  (lwlgl.util:resume-timer timers *timer-spawn*)
+  (lwlgl.util:cancel-timer timers *timer-spawn*))
+```
+
+`TIMER-QUEUE-TIME-SCALE` e `TIMER-QUEUE-PAUSED-P` aceitam `SETF`. Timers repetitivos usam catch-up limitado para impedir rajadas ilimitadas de callbacks depois de um frame muito longo.
+
 ## Mapas de ações de input
 
 ```lisp
@@ -95,16 +129,56 @@ Monitores e gamepads:
 
 Ações aceitam múltiplos bindings; eixos digitais combinam bindings negativo/positivo.
 
+A 0.4 adiciona bindings compostos e eixos 2D:
+
+```lisp
+(lwlgl.input:bind-action
+ acoes :salvar
+ (lwlgl.input:chord-binding
+  (lwlgl.input:key-binding lwlgl.glfw:key-left-control)
+  (lwlgl.input:key-binding lwlgl.glfw:key-s)))
+
+(lwlgl.input:bind-action
+ acoes :confirmar
+ (lwlgl.input:any-binding
+  (lwlgl.input:key-binding lwlgl.glfw:key-enter)
+  (lwlgl.input:key-binding lwlgl.glfw:key-space)))
+
+(lwlgl.input:bind-axis2
+ acoes :movimento
+ (lwlgl.input:key-binding lwlgl.glfw:key-a)
+ (lwlgl.input:key-binding lwlgl.glfw:key-d)
+ (lwlgl.input:key-binding lwlgl.glfw:key-s)
+ (lwlgl.input:key-binding lwlgl.glfw:key-w)
+ :normalize t)
+
+(multiple-value-bind (x y)
+    (lwlgl.input:axis2-value acoes input :movimento)
+  ...)
+```
+
+`CHORD-BINDING` exige que todos os bindings filhos estejam ativos. `ANY-BINDING` aceita qualquer filho. `:NORMALIZE T` evita que o movimento diagonal fique mais rápido que o movimento cardinal.
+
 ## Assets e hot reload de desenvolvimento
 
-`lwlgl/assets` oferece raízes de busca, loaders por extensão, cache, invalidação e detecção de arquivos alterados por timestamp.
+`lwlgl/assets` oferece raízes de busca, loaders por extensão, cache, invalidação e detecção de arquivos alterados por timestamp. A 0.4 também oferece preload em lote, inspeção de metadados do cache e listeners de reload.
 
 ```lisp
 (let ((assets (lwlgl.assets:make-asset-manager :roots (list #P"assets/"))))
   (lwlgl.assets:register-asset-loader assets "glsl" #'lwlgl.assets:load-text-file)
   (lwlgl.assets:load-asset assets "shaders/basic.glsl")
-  (lwlgl.assets:reload-changed-assets assets))
+  (lwlgl.assets:preload-assets assets
+                              '("shaders/world.vert" "shaders/world.frag"))
+  (lwlgl.assets:add-asset-reload-listener
+   assets
+   (lambda (manager path value)
+     (declare (ignore manager value))
+     (format t "Recarregado: ~A~%" path)))
+  (lwlgl.assets:reload-changed-assets assets)
+  (lwlgl.assets:cached-assets assets))
 ```
+
+`CACHED-ASSETS` retorna plists com `:PATH`, `:WRITE-DATE` e `:LOADER`. Os listeners são chamados depois que `RELOAD-CHANGED-ASSETS` recarrega uma entrada em cache.
 
 ## Wavefront OBJ
 

@@ -6,6 +6,11 @@
    #:frame-clock-delta #:frame-clock-elapsed #:frame-clock-frame-count #:frame-clock-fps
    #:fixed-step #:make-fixed-step #:fixed-step-dt #:fixed-step-accumulator
    #:reset-fixed-step #:advance-fixed-step
+   ;; Timers
+   #:timer #:timer-id #:timer-remaining #:timer-interval #:timer-repeating-p #:timer-paused-p #:timer-fire-count
+   #:timer-queue #:make-timer-queue #:timer-queue-time-scale #:timer-queue-paused-p #:timer-queue-max-catch-up
+   #:schedule-timer #:schedule-repeating-timer #:timer-active-p #:cancel-timer #:pause-timer #:resume-timer
+   #:clear-timers #:advance-timers
    ;; Profiling
    #:profile-stat #:profile-stat-name #:profile-stat-count #:profile-stat-total #:profile-stat-last
    #:profile-stat-minimum #:profile-stat-maximum #:profile-stat-average

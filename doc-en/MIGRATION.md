@@ -25,6 +25,19 @@ Callback setters still install one application callback logically, but internall
 The umbrella `:lwlgl` system loads them automatically.
 
 
+## From LWLGL 0.3 to 0.4
+
+0.4 is additive for normal 0.3 callers. Existing public names and subsystem boundaries remain available.
+
+New APIs:
+
+- `lwlgl/math`: `PLANE`, `SPHERE`, ray/sphere intersection, sphere/AABB overlap, `FRUSTUM-FROM-MATRIX`, and frustum point/sphere/AABB queries.
+- `lwlgl/util`: deterministic `TIMER-QUEUE` scheduling with one-shot/repeating timers, cancellation, pause/resume, time scaling, and bounded catch-up.
+- `lwlgl/input`: `CHORD-BINDING`, `ANY-BINDING`, and two-dimensional digital axes with `BIND-AXIS2` / `AXIS2-VALUE`.
+- `lwlgl/assets`: `PRELOAD-ASSETS`, `CACHED-ASSETS`, and add/remove reload listeners.
+
+The umbrella `:lwlgl` system still loads all modules. `lwlgl/tests` now also depends on `lwlgl/input` so the device-free test suite can validate composite bindings without opening a window.
+
 ## From LWLGL 0.2 to 0.3
 
 0.3 is additive for normal 0.2 callers. New optional systems are `lwlgl/assets`, `lwlgl/obj`, and `lwlgl/gfx`; the umbrella `:lwlgl` loads them automatically. Existing package-qualified public names are retained.

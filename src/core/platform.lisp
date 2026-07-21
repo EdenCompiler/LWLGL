@@ -1,6 +1,6 @@
 (in-package #:lwlgl.core)
 
-(defparameter *lwlgl-version* "0.3.2")
+(defparameter *lwlgl-version* "0.4.0")
 
 (defun platform ()
   "Retorna uma keyword que identifica a plataforma hospedeira."

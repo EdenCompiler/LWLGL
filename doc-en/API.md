@@ -1,4 +1,4 @@
-# LWLGL 0.3 API Guide
+# LWLGL 0.4 API Guide
 
 This guide highlights the convenience layer. Raw/native-style functions remain available in the module packages.
 
@@ -40,6 +40,22 @@ Matrices are 16-element single-float column-major arrays.
      (lambda (fixed-dt) (update-world fixed-dt)))))
 ```
 
+### Deterministic timers
+
+```lisp
+(let ((timers (lwlgl.util:make-timer-queue :max-catch-up 4)))
+  (lwlgl.util:schedule-timer timers 1.0d0 #'show-message)
+  (defparameter *spawn-timer*
+    (lwlgl.util:schedule-repeating-timer timers 0.25d0 #'spawn-particle))
+
+  ;; Advance using your frame delta.
+  (lwlgl.util:advance-timers timers dt)
+  (lwlgl.util:pause-timer timers *spawn-timer*)
+  (lwlgl.util:resume-timer timers *spawn-timer*)
+  (lwlgl.util:cancel-timer timers *spawn-timer*))
+```
+
+`TIMER-QUEUE-TIME-SCALE` and `TIMER-QUEUE-PAUSED-P` are setf-able. Repeating timers use bounded catch-up so a large frame delta cannot trigger an unbounded callback burst.
 
 ## Quaternions, inversion and geometry
 
@@ -54,6 +70,24 @@ Matrices are 16-element single-float column-major arrays.
 ```
 
 `AABB`, `RAY`, `RAY-AABB-INTERSECTION`, `PROJECT-POINT`, and `UNPROJECT-POINT` cover common picking and bounds workflows without introducing a physics engine.
+
+LWLGL 0.4 adds planes, bounding spheres, ray/sphere queries and frustum culling:
+
+```lisp
+(let* ((projection (lwlgl.math:perspective-mat4
+                    (lwlgl.math:degrees->radians 60)
+                    (/ 16.0 9.0) 0.1 100.0))
+       (view (lwlgl.math:look-at-mat4
+              (lwlgl.math:vec3 0 2 5)
+              (lwlgl.math:vec3 0 0 0)
+              (lwlgl.math:vec3 0 1 0)))
+       (frustum (lwlgl.math:frustum-from-matrix
+                 (lwlgl.math:mat4-mul projection view)))
+       (bounds (lwlgl.math:sphere (lwlgl.math:vec3 0 0 0) 2.0)))
+  (lwlgl.math:frustum-intersects-sphere-p frustum bounds))
+```
+
+`FRUSTUM-INTERSECTS-AABB-P`, `FRUSTUM-CONTAINS-POINT-P`, `SPHERE-INTERSECTS-AABB-P`, and `RAY-SPHERE-INTERSECTION` cover common broad-phase visibility and picking queries.
 
 ## Profiling
 
@@ -132,6 +166,36 @@ Call `BEGIN-INPUT-FRAME` immediately before event polling when you want transien
 
 Actions may have multiple keyboard/mouse bindings. Digital axes combine negative and positive bindings into `-1`, `0`, or `1`.
 
+Composite bindings and 2D axes are available in 0.4:
+
+```lisp
+(lwlgl.input:bind-action
+ actions :save
+ (lwlgl.input:chord-binding
+  (lwlgl.input:key-binding lwlgl.glfw:key-left-control)
+  (lwlgl.input:key-binding lwlgl.glfw:key-s)))
+
+(lwlgl.input:bind-action
+ actions :confirm
+ (lwlgl.input:any-binding
+  (lwlgl.input:key-binding lwlgl.glfw:key-enter)
+  (lwlgl.input:key-binding lwlgl.glfw:key-space)))
+
+(lwlgl.input:bind-axis2
+ actions :move
+ (lwlgl.input:key-binding lwlgl.glfw:key-a)
+ (lwlgl.input:key-binding lwlgl.glfw:key-d)
+ (lwlgl.input:key-binding lwlgl.glfw:key-s)
+ (lwlgl.input:key-binding lwlgl.glfw:key-w)
+ :normalize t)
+
+(multiple-value-bind (x y)
+    (lwlgl.input:axis2-value actions input :move)
+  ...)
+```
+
+`CHORD-BINDING` requires every child binding to be active. `ANY-BINDING` accepts any child. `:NORMALIZE T` prevents diagonal 2D movement from becoming faster than cardinal movement.
+
 ## Assets
 
 ```lisp
@@ -142,6 +206,22 @@ Actions may have multiple keyboard/mouse bindings. Digital axes combine negative
 ```
 
 The manager resolves search roots, caches by resolved path and loader, supports explicit invalidation, and detects changed modification times for development-time reload workflows.
+
+```lisp
+(lwlgl.assets:preload-assets assets
+                            '("shaders/world.vert"
+                              "shaders/world.frag"))
+
+(lwlgl.assets:add-asset-reload-listener
+ assets
+ (lambda (manager path value)
+   (declare (ignore manager value))
+   (format t "Reloaded ~A~%" path)))
+
+(lwlgl.assets:cached-assets assets)
+```
+
+`PRELOAD-ASSETS` loads requests in order. `CACHED-ASSETS` returns metadata plists containing `:PATH`, `:WRITE-DATE`, and `:LOADER`. Reload listeners run after `RELOAD-CHANGED-ASSETS` refreshes a cached entry.
 
 ## Wavefront OBJ
 

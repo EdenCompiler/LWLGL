@@ -8,7 +8,7 @@
 
 LWLGL is a modular Common Lisp library for low-level game, graphics, audio, compute, and native-platform programming in the spirit of LWJGL. It does not try to be a game engine; instead, it provides composable bindings and thin utilities around GLFW, OpenGL, OpenAL, Vulkan loader discovery, OpenCL discovery, and stb_image, plus Lisp-native math, input, assets, profiling, OBJ loading, and graphics integration helpers.
 
-Current version: 0.3.2.
+Current version: 0.4.0.
 
 ## Highlights
 
@@ -18,17 +18,17 @@ Current version: 0.3.2.
 - GLFW window/context lifecycle, monitors, video modes, callbacks, clipboard, joysticks, gamepads, content scale, opacity, attention requests, and Vulkan interop;
 - composable GLFW callback handlers, allowing library-level input tracking and application callbacks to coexist;
 - stateful keyboard/mouse input with pressed/down/released transitions, text input, deltas, scrolling, and focus state;
-- named input action maps and digital axes with multiple keyboard/mouse bindings;
+- named input action maps, composite chords/alternatives, one-dimensional axes, and normalized two-dimensional digital axes;
 - runtime-loaded OpenGL entry points with required/optional capability tracking;
 - OpenGL buffers, VAOs, shaders, programs, textures, framebuffers, renderbuffers, UBOs, instancing, state control, pixel readback, GPU queries, and sync fences;
 - OpenGL shader compilation/link conditions carrying native info logs;
-- vector, matrix, quaternion, transform, projection, ray, and AABB math in OpenGL-friendly column-major form;
-- frame clocks, fixed-timestep simulation, interpolation helpers, and lightweight named profiling statistics;
+- vector, matrix, quaternion, transform, projection, ray, AABB, sphere, plane, and frustum-culling math in OpenGL-friendly column-major form;
+- frame clocks, fixed-timestep simulation, interpolation helpers, deterministic timer queues, and lightweight named profiling statistics;
 - OpenAL playback, spatial source/listener controls, queued streaming buffers, PCM WAV loading, device enumeration, and capture-device helpers;
 - stb_image file/memory loading, image metadata, HDR detection/loading, and vertical-flip control;
 - Vulkan loader version, instance extension/layer discovery, plus GLFW-required extensions and window-surface creation helpers;
 - OpenCL platform/device discovery with compute units, clock, work-group limits, memory, driver, version, profile, availability, and extensions;
-- asset search roots, extension-based loaders, cache invalidation, and changed-file reload detection;
+- asset search roots, extension-based loaders, bulk preloading, cache inspection/invalidation, changed-file reload detection, and reload listeners;
 - dependency-free Wavefront OBJ parsing with fan triangulation, negative indices, deduplicated indexed vertices, bounds, normals, and UVs;
 - graphics integration helpers for recursive GLSL `#include`, program creation from files, stb-backed texture upload, and OBJ-to-VAO/VBO/EBO upload;
 - runnable examples for windows, triangles, instancing, input/timing, audio, native-system discovery, and the device-free utility toolbox;
@@ -72,7 +72,7 @@ Run the device-free test suite with SBCL:
 
     sbcl --script run-tests.lisp
 
-The tests cover native-memory helpers, module registration, platform/version reporting, vectors, matrices and inversion, quaternions, ray/AABB intersection, fixed timesteps, profiling, OBJ parsing, and asset-loader registration without requiring a window, GPU, or audio device.
+The tests cover native-memory helpers, module registration, platform/version reporting, vectors, matrices and inversion, quaternions, rays/AABBs/spheres/frustums, deterministic timers, composite input bindings and 2D axes, fixed timesteps, profiling, OBJ parsing, and asset-loader registration without requiring a window, GPU, or audio device.
 
 ### stb_image shim
 
@@ -132,6 +132,20 @@ Geometry helpers include AABBs and rays:
       (lwlgl.math:ray-aabb-intersection ray box))
     ;; => 4.0, 6.0 as entry/exit distances
 
+Spatial queries also include spheres, planes, ray/sphere tests, and view-frustum culling:
+
+    (let* ((projection (lwlgl.math:perspective-mat4
+                         (lwlgl.math:degrees->radians 60)
+                         (/ 16.0 9.0) 0.1 100.0))
+           (view (lwlgl.math:look-at-mat4
+                  (lwlgl.math:vec3 0 2 5)
+                  (lwlgl.math:vec3 0 0 0)
+                  (lwlgl.math:vec3 0 1 0)))
+           (frustum (lwlgl.math:frustum-from-matrix
+                     (lwlgl.math:mat4-mul projection view)))
+           (bounds (lwlgl.math:sphere (lwlgl.math:vec3 0 0 0) 1.5)))
+      (lwlgl.math:frustum-intersects-sphere-p frustum bounds))
+
 ### Stateful input and action maps
 
 Attach one input state to a window and clear one-frame transitions before polling events:
@@ -156,7 +170,25 @@ Attach one input state to a window and clear one-frame transitions before pollin
       (format t "Horizontal axis: ~A~%"
               (lwlgl.input:axis-value actions input :horizontal)))
 
-Action bindings sit above the raw GLFW key/mouse APIs without replacing them.
+Action bindings sit above the raw GLFW key/mouse APIs without replacing them. Composite bindings support shortcuts and alternatives, while `BIND-AXIS2` builds WASD/D-pad style movement without adding a math dependency:
+
+    (lwlgl.input:bind-action
+      actions :save
+      (lwlgl.input:chord-binding
+        (lwlgl.input:key-binding lwlgl.glfw:key-left-control)
+        (lwlgl.input:key-binding lwlgl.glfw:key-s)))
+
+    (lwlgl.input:bind-axis2
+      actions :move
+      (lwlgl.input:key-binding lwlgl.glfw:key-a)
+      (lwlgl.input:key-binding lwlgl.glfw:key-d)
+      (lwlgl.input:key-binding lwlgl.glfw:key-s)
+      (lwlgl.input:key-binding lwlgl.glfw:key-w)
+      :normalize t)
+
+    (multiple-value-bind (x y)
+        (lwlgl.input:axis2-value actions input :move)
+      (move-player x y))
 
 ### Asset roots and reload detection
 
@@ -173,7 +205,7 @@ Action bindings sit above the raw GLFW key/mouse APIs without replacing them.
     ;; Later, for editor/development workflows:
     (lwlgl.assets:reload-changed-assets *assets*)
 
-A cache entry is keyed by resolved file and loader. `load-asset` can automatically refresh an entry when the file modification time changes, while explicit invalidation and full-cache clearing are also available.
+A cache entry is keyed by resolved file and loader. `load-asset` can automatically refresh an entry when the file modification time changes, while explicit invalidation and full-cache clearing are also available. `PRELOAD-ASSETS` performs ordered bulk loads, `CACHED-ASSETS` exposes cache metadata, and reload listeners receive `(manager path value)` after `RELOAD-CHANGED-ASSETS` refreshes a cached file.
 
 ### OBJ loading and GPU upload
 
@@ -274,7 +306,15 @@ After an application creates a Vulkan instance, `create-window-surface` bridges 
                 (lwlgl.util:profile-stat-total stat)
                 (lwlgl.util:profile-stat-average stat))))
 
-The profiler is intentionally simple: it records named wall/process-time samples and aggregates count, total, last, minimum, maximum, and average.
+The profiler is intentionally simple: it records named wall/process-time samples and aggregates count, total, last, minimum, maximum, and average. Delta-driven timer queues can use the same frame delta:
+
+    (let ((timers (lwlgl.util:make-timer-queue)))
+      (lwlgl.util:schedule-timer timers 2.0d0 #'open-door)
+      (lwlgl.util:schedule-repeating-timer timers 0.5d0 #'spawn-particle)
+      ;; once per frame:
+      (lwlgl.util:advance-timers timers dt))
+
+Timer queues support pause/resume, cancellation, queue-wide time scaling, and bounded catch-up for repeating timers.
 
 ## Suggested architecture
 
@@ -305,11 +345,11 @@ The intended boundary is deliberate: LWLGL supplies low-level capabilities and s
 ## Systems
 
 - `lwlgl/core` — platform detection, native modules, memory, symbol lookup, diagnostics;
-- `lwlgl/math` — vectors, matrices, quaternions, transforms, projections, rays, AABBs;
-- `lwlgl/util` — clocks, fixed timestep, interpolation, profiling;
+- `lwlgl/math` — vectors, matrices, quaternions, transforms, projections, rays, AABBs, spheres, planes, and frustums;
+- `lwlgl/util` — clocks, fixed timestep, interpolation, deterministic timers, and profiling;
 - `lwlgl/glfw` — windows, contexts, monitors, input devices, callbacks, Vulkan bridge;
-- `lwlgl/input` — frame-state input and action maps;
-- `lwlgl/assets` — asset roots, loaders, caching, change detection;
+- `lwlgl/input` — frame-state input, composite action bindings, 1D axes, and 2D axes;
+- `lwlgl/assets` — asset roots, loaders, preload, cache inspection, change detection, and reload listeners;
 - `lwlgl/obj` — Wavefront OBJ loading;
 - `lwlgl/opengl` — runtime-loaded OpenGL calls and helpers;
 - `lwlgl/openal` — playback, WAV, streaming, discovery, capture;
@@ -351,7 +391,7 @@ Inspect startup state from Lisp with `(lwlgl.glfw:glfw-diagnostics)`.
 
 LWLGL 0.3.2 protects `lwlgl.glfw:with-glfw` from SBCL floating-point traps that can be triggered inside native window-system or graphics-driver code. If you integrate another native multimedia API directly, wrap that native scope with `lwlgl.core:with-native-floating-point-environment`.
 
-Version 0.3.2 is still an early low-level library. Vulkan is a loader/bootstrap layer rather than generated full Vulkan bindings; OpenCL focuses on discovery rather than complete compute-command coverage; the OBJ loader intentionally targets the common geometry subset and does not yet implement MTL/material parsing, smoothing-group-generated normals, or every vendor extension; `lwlgl/gfx` is a convenience integration layer rather than a renderer; stb_image requires the bundled shim to be built; and native APIs still depend on platform libraries supplied by the host system or application.
+Version 0.4.0 is still an early low-level library. Vulkan is a loader/bootstrap layer rather than generated full Vulkan bindings; OpenCL focuses on discovery rather than complete compute-command coverage; the OBJ loader intentionally targets the common geometry subset and does not yet implement MTL/material parsing, smoothing-group-generated normals, or every vendor extension; `lwlgl/gfx` is a convenience integration layer rather than a renderer; stb_image requires the bundled shim to be built; and native APIs still depend on platform libraries supplied by the host system or application.
 
 Important future directions include generated Vulkan/OpenGL/OpenAL/OpenCL bindings, richer OpenGL debug output and indirect/multi-draw APIs, cursor/image/window-icon helpers, audio streaming abstractions, MTL and glTF import paths, font/text bindings, controller mapping management, native packaging, CI across multiple Lisp implementations, and broader executable tests on real graphics/audio devices.
 
@@ -365,7 +405,7 @@ MIT. See `LICENSE`.
 
 LWLGL é uma biblioteca modular em Common Lisp para programação de baixo nível voltada a jogos, gráficos, áudio, computação e integração nativa, no espírito do LWJGL. Ela não tenta ser um motor de jogos; em vez disso, oferece bindings componíveis e utilitários finos para GLFW, OpenGL, OpenAL, descoberta do carregador Vulkan, descoberta OpenCL e stb_image, além de matemática, input, assets, profiling, carregamento OBJ e integração gráfica escritos em Lisp.
 
-Versão atual: 0.3.2.
+Versão atual: 0.4.0.
 
 ## Destaques
 
@@ -375,17 +415,17 @@ Versão atual: 0.3.2.
 - GLFW para janelas/contextos, monitores, modos de vídeo, callbacks, clipboard, joysticks, gamepads, escala de conteúdo, opacidade, pedido de atenção e interoperabilidade Vulkan;
 - handlers GLFW componíveis, permitindo que o rastreamento de input da biblioteca e callbacks da aplicação coexistam;
 - input stateful de teclado/mouse com transições pressionado/segurado/solto, texto Unicode, deltas, scroll e foco;
-- mapas de ações nomeadas e eixos digitais com múltiplos bindings de teclado/mouse;
+- mapas de ações nomeadas, chords/alternativas compostas, eixos digitais 1D e eixos digitais 2D normalizados;
 - funções OpenGL carregadas em runtime, com rastreamento de capacidades obrigatórias e opcionais;
 - buffers, VAOs, shaders, programas, texturas, framebuffers, renderbuffers, UBOs, instancing, estado gráfico, leitura de pixels, queries de GPU e fences de sincronização;
 - condições Lisp para erros de compilação/link de shaders contendo os logs nativos;
-- vetores, matrizes, quaternions, transforms, projeções, rays e AABBs em formato column-major amigável ao OpenGL;
-- relógios de frame, simulação em timestep fixo, interpolação e profiling leve por seções nomeadas;
+- vetores, matrizes, quaternions, transforms, projeções, rays, AABBs, esferas, planos e frustum culling em formato column-major amigável ao OpenGL;
+- relógios de frame, simulação em timestep fixo, interpolação, filas determinísticas de timers e profiling leve por seções nomeadas;
 - OpenAL com reprodução, áudio espacial, streaming por filas, WAV PCM, enumeração de dispositivos e captura de áudio;
 - stb_image para arquivos/memória, metadados, HDR e flip vertical;
 - versão/extensões/layers do carregador Vulkan, extensões exigidas pelo GLFW e criação de surface de janela;
 - descoberta OpenCL com compute units, clock, work-group, memória, driver, versão, perfil, disponibilidade e extensões;
-- raízes de assets, loaders por extensão, cache, invalidação e detecção/reload de arquivos alterados;
+- raízes de assets, loaders por extensão, preload em lote, inspeção/invalidação de cache, detecção/reload de arquivos alterados e listeners de reload;
 - parser Wavefront OBJ sem dependências extras, com triangulação em leque, índices negativos, vértices indexados deduplicados, bounds, normals e UVs;
 - integração gráfica para `#include` GLSL recursivo, programas a partir de arquivos, upload de texturas via stb e upload OBJ para VAO/VBO/EBO;
 - exemplos executáveis de janela, triângulos, instancing, input/timing, áudio, descoberta do sistema nativo e utilitários sem dispositivo;
@@ -489,6 +529,20 @@ A biblioteca também oferece AABBs e rays:
       (lwlgl.math:ray-aabb-intersection raio caixa))
     ;; => 4.0, 6.0 como distâncias de entrada/saída
 
+As consultas espaciais também incluem esferas, planos, interseção ray/esfera e frustum culling:
+
+    (let* ((projecao (lwlgl.math:perspective-mat4
+                        (lwlgl.math:degrees->radians 60)
+                        (/ 16.0 9.0) 0.1 100.0))
+           (view (lwlgl.math:look-at-mat4
+                  (lwlgl.math:vec3 0 2 5)
+                  (lwlgl.math:vec3 0 0 0)
+                  (lwlgl.math:vec3 0 1 0)))
+           (frustum (lwlgl.math:frustum-from-matrix
+                     (lwlgl.math:mat4-mul projecao view)))
+           (bounds (lwlgl.math:sphere (lwlgl.math:vec3 0 0 0) 1.5)))
+      (lwlgl.math:frustum-intersects-sphere-p frustum bounds))
+
 ### Input stateful e mapas de ações
 
     (let* ((input (lwlgl.input:make-input-state window))
@@ -510,7 +564,25 @@ A biblioteca também oferece AABBs e rays:
 
       (lwlgl.input:axis-value acoes input :horizontal))
 
-Os mapas de ações ficam acima da API crua de teclado/mouse sem substituí-la.
+Os mapas de ações ficam acima da API crua de teclado/mouse sem substituí-la. Bindings compostos permitem atalhos e alternativas, enquanto `BIND-AXIS2` fornece movimento estilo WASD/D-pad:
+
+    (lwlgl.input:bind-action
+      acoes :salvar
+      (lwlgl.input:chord-binding
+        (lwlgl.input:key-binding lwlgl.glfw:key-left-control)
+        (lwlgl.input:key-binding lwlgl.glfw:key-s)))
+
+    (lwlgl.input:bind-axis2
+      acoes :movimento
+      (lwlgl.input:key-binding lwlgl.glfw:key-a)
+      (lwlgl.input:key-binding lwlgl.glfw:key-d)
+      (lwlgl.input:key-binding lwlgl.glfw:key-s)
+      (lwlgl.input:key-binding lwlgl.glfw:key-w)
+      :normalize t)
+
+    (multiple-value-bind (x y)
+        (lwlgl.input:axis2-value acoes input :movimento)
+      (mover-jogador x y))
 
 ### Assets, cache e reload
 
@@ -526,7 +598,7 @@ Os mapas de ações ficam acima da API crua de teclado/mouse sem substituí-la.
 
     (lwlgl.assets:reload-changed-assets *assets*)
 
-O cache usa o arquivo resolvido e o loader como chave. É possível recarregar automaticamente por data de modificação, invalidar assets específicos ou limpar todo o cache.
+O cache usa o arquivo resolvido e o loader como chave. É possível recarregar automaticamente por data de modificação, invalidar assets específicos ou limpar todo o cache. `PRELOAD-ASSETS` faz carregamento em lote ordenado, `CACHED-ASSETS` expõe metadados do cache e listeners de reload recebem `(manager path value)` depois que `RELOAD-CHANGED-ASSETS` atualiza um arquivo.
 
 ### OBJ e upload para GPU
 
@@ -620,7 +692,15 @@ Depois de a aplicação criar um `VkInstance`, `create-window-surface` conecta u
 
       (lwlgl.util:profiler-report profiler))
 
-O profiler agrega contagem, total, última amostra, mínimo, máximo e média por nome de seção.
+O profiler agrega contagem, total, última amostra, mínimo, máximo e média por nome de seção. Filas de timers dirigidas por delta podem usar o mesmo clock de frame:
+
+    (let ((timers (lwlgl.util:make-timer-queue)))
+      (lwlgl.util:schedule-timer timers 2.0d0 #'abrir-porta)
+      (lwlgl.util:schedule-repeating-timer timers 0.5d0 #'criar-particula)
+      ;; uma vez por frame:
+      (lwlgl.util:advance-timers timers dt))
+
+As filas suportam pause/resume, cancelamento, escala global de tempo e limite de catch-up para timers repetitivos.
 
 ## Arquitetura sugerida
 
@@ -651,11 +731,11 @@ A fronteira é proposital: LWLGL fornece capacidades de baixo nível e pequenos 
 ## Sistemas
 
 - `lwlgl/core` — plataforma, módulos nativos, memória, símbolos e diagnóstico;
-- `lwlgl/math` — vetores, matrizes, quaternions, transforms, projeções, rays e AABBs;
-- `lwlgl/util` — clocks, timestep fixo, interpolação e profiling;
+- `lwlgl/math` — vetores, matrizes, quaternions, transforms, projeções, rays, AABBs, esferas, planos e frustums;
+- `lwlgl/util` — clocks, timestep fixo, interpolação, timers determinísticos e profiling;
 - `lwlgl/glfw` — janelas, contextos, monitores, dispositivos, callbacks e ponte Vulkan;
-- `lwlgl/input` — estado por frame e action maps;
-- `lwlgl/assets` — raízes, loaders, cache e detecção de alterações;
+- `lwlgl/input` — estado por frame, bindings compostos, eixos 1D e eixos 2D;
+- `lwlgl/assets` — raízes, loaders, preload, inspeção de cache, detecção de alterações e listeners de reload;
 - `lwlgl/obj` — carregamento Wavefront OBJ;
 - `lwlgl/opengl` — OpenGL carregado em runtime e helpers;
 - `lwlgl/openal` — reprodução, WAV, streaming, descoberta e captura;
@@ -695,7 +775,7 @@ Inspecione o estado com `(lwlgl.glfw:glfw-diagnostics)`.
 
 O LWLGL 0.3.2 protege `lwlgl.glfw:with-glfw` contra traps de ponto flutuante do SBCL que podem ser disparados dentro do sistema de janelas ou do driver gráfico. Ao integrar diretamente outra API multimídia nativa, envolva esse escopo com `lwlgl.core:with-native-floating-point-environment`.
 
-A versão 0.3.2 ainda é uma biblioteca de baixo nível em estágio inicial. Vulkan fornece bootstrap/introspecção do loader em vez de bindings Vulkan completos gerados; OpenCL está concentrado em descoberta, não em toda a API de comandos; o parser OBJ implementa o subconjunto geométrico comum e ainda não cobre MTL/materiais, geração de normals por smoothing groups ou todas as extensões de fornecedores; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige a compilação do shim incluído; e APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
+A versão 0.4.0 ainda é uma biblioteca de baixo nível em estágio inicial. Vulkan fornece bootstrap/introspecção do loader em vez de bindings Vulkan completos gerados; OpenCL está concentrado em descoberta, não em toda a API de comandos; o parser OBJ implementa o subconjunto geométrico comum e ainda não cobre MTL/materiais, geração de normals por smoothing groups ou todas as extensões de fornecedores; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige a compilação do shim incluído; e APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
 
 Direções futuras incluem bindings gerados para Vulkan/OpenGL/OpenAL/OpenCL, debug output e indirect/multi-draw no OpenGL, cursores/ícones de janela, abstrações de streaming de áudio, MTL e glTF, fontes/texto, gerenciamento de mappings de controles, empacotamento nativo, CI em várias implementações Lisp e testes executáveis em dispositivos gráficos/áudio reais.
 
