@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Fixed `frustum-from-matrix` local-function scoping on conforming Common Lisp implementations by using `LABELS`, eliminating the undefined `LWLGL.MATH::COEFFICIENT` style warning and runtime failure.
+- Updated `quickstart.lisp` to load `lwlgl/examples` together with the main library so `lwlgl.examples:toolbox-demo` and the other documented examples are immediately available after quickstart.
+- Updated README quickstart instructions and version metadata/tests for the patch release.
+
 ## 0.4.0
 
 - Added planes, bounding spheres, ray/sphere intersection, sphere/AABB tests, frustum extraction from OpenGL clip matrices, and point/sphere/AABB frustum culling helpers.

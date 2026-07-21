@@ -11,6 +11,15 @@
 (asdf:load-system :lwlgl)
 ```
 
+Os exemplos ficam no sistema ASDF separado `lwlgl/examples`:
+
+```lisp
+(asdf:load-system :lwlgl/examples)
+(lwlgl.examples:toolbox-demo)
+```
+
+Como alternativa, `(load #P"quickstart.lisp")` carrega a biblioteca principal e também o sistema de exemplos.
+
 ## Bibliotecas nativas
 
 Instale apenas os módulos necessários:
@@ -67,7 +76,7 @@ Os testes centrais não exigem GPU, janela ou dispositivo de áudio.
 
 ## SBCL: `FLOATING-POINT-INVALID-OPERATION` no GLFW ou nos drivers gráficos
 
-O SBCL normalmente habilita traps para operação de ponto flutuante inválida, overflow e divisão por zero. Alguns caminhos nativos do sistema de janelas/driver OpenGL podem executar instruções de ponto flutuante que marcam essas exceções de hardware mesmo quando a chamada nativa pode continuar normalmente. O LWLGL 0.3.2 mascara esses traps durante o escopo dinâmico de `LWLGL.GLFW:WITH-GLFW` e restaura o modo de ponto flutuante anterior ao sair.
+O SBCL normalmente habilita traps para operação de ponto flutuante inválida, overflow e divisão por zero. Alguns caminhos nativos do sistema de janelas/driver OpenGL podem executar instruções de ponto flutuante que marcam essas exceções de hardware mesmo quando a chamada nativa pode continuar normalmente. Desde o LWLGL 0.3.2, a biblioteca mascara esses traps durante o escopo dinâmico de `LWLGL.GLFW:WITH-GLFW` e restaura o modo de ponto flutuante anterior ao sair.
 
 Aplicações que chamam bibliotecas multimídia nativas fora de `WITH-GLFW` podem usar explicitamente:
 

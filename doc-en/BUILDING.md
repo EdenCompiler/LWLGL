@@ -15,6 +15,15 @@ With Quicklisp:
 (asdf:load-system :lwlgl)
 ```
 
+Examples live in the separate `lwlgl/examples` ASDF system:
+
+```lisp
+(asdf:load-system :lwlgl/examples)
+(lwlgl.examples:toolbox-demo)
+```
+
+Alternatively, `(load #P"quickstart.lisp")` loads both the main library and the examples system.
+
 ## Linux
 
 Install the native libraries you plan to use with your distribution package manager. Typical development/runtime packages provide:
@@ -94,7 +103,7 @@ Graphics/audio examples require the corresponding native libraries and hardware/
 
 ## SBCL: `FLOATING-POINT-INVALID-OPERATION` in GLFW or graphics drivers
 
-SBCL normally enables traps for floating-point invalid operations, overflow and division by zero. Some native window-system/OpenGL driver paths may execute floating-point instructions that set those hardware exception flags even though the native API call itself can continue normally. LWLGL 0.3.2 masks these traps for the dynamic extent of `LWLGL.GLFW:WITH-GLFW` and restores the caller's previous floating-point mode afterwards.
+SBCL normally enables traps for floating-point invalid operations, overflow and division by zero. Some native window-system/OpenGL driver paths may execute floating-point instructions that set those hardware exception flags even though the native API call itself can continue normally. Since LWLGL 0.3.2, the library masks these traps for the dynamic extent of `LWLGL.GLFW:WITH-GLFW` and restores the caller's previous floating-point mode afterwards.
 
 Applications that call native multimedia libraries outside `WITH-GLFW` can explicitly use:
 

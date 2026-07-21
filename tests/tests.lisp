@@ -27,7 +27,7 @@
 
 (defun test-platform ()
   (check (member (lwlgl.core:platform) '(:windows :macos :linux :unknown)))
-  (check (string= "0.4.0" lwlgl.core:*lwlgl-version*)))
+  (check (string= "0.4.1" lwlgl.core:*lwlgl-version*)))
 
 (defun test-vectors ()
   (let* ((a (lwlgl.math:vec3 1 2 3))

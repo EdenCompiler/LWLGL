@@ -79,7 +79,7 @@
 (defun frustum-from-matrix (clip-matrix)
   "Extracts the six inward-facing clipping planes from an OpenGL-style clip matrix."
   (check-type clip-matrix mat4)
-  (flet ((coefficient (row column)
+  (labels ((coefficient (row column)
            (mat4-ref clip-matrix row column))
          (make-extracted-plane (row-sign row-index)
            (%plane-from-coefficients
