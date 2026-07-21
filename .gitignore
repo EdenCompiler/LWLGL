@@ -1,0 +1,8 @@
+*.fasl
+*.dx64fsl
+*.lx64fsl
+*.so
+*.dylib
+*.dll
+native/build/
+.quicklisp/

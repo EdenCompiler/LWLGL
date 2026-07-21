@@ -1,0 +1,184 @@
+(asdf:defsystem #:lwlgl/core
+  :description "LWLGL core: native modules, memory utilities and diagnostics."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:cffi #:uiop)
+  :serial t
+  :components ((:file "src/core/package")
+               (:file "src/core/platform")
+               (:file "src/core/conditions")
+               (:file "src/core/modules")
+               (:file "src/core/memory")
+               (:file "src/core/runtime")))
+
+(asdf:defsystem #:lwlgl/math
+  :description "Allocation-conscious vectors, matrices, quaternions and geometry helpers for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :serial t
+  :components ((:file "src/math/package")
+               (:file "src/math/vectors")
+               (:file "src/math/matrices")
+               (:file "src/math/quaternions")
+               (:file "src/math/geometry")))
+
+(asdf:defsystem #:lwlgl/util
+  :description "Timing, fixed-step simulation and lightweight profiling for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core)
+  :serial t
+  :components ((:file "src/util/package")
+               (:file "src/util/timing")
+               (:file "src/util/profiling")))
+
+(asdf:defsystem #:lwlgl/glfw
+  :description "GLFW bindings and idiomatic Common Lisp window/input helpers."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:cffi)
+  :serial t
+  :components ((:file "src/glfw/package")
+               (:file "src/glfw/raw")
+               (:file "src/glfw/devices")
+               (:file "src/glfw/window")))
+
+(asdf:defsystem #:lwlgl/input
+  :description "Stateful keyboard/mouse input and named action maps built on LWLGL GLFW callbacks."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/glfw)
+  :serial t
+  :components ((:file "src/input/package")
+               (:file "src/input/state")
+               (:file "src/input/actions")))
+
+(asdf:defsystem #:lwlgl/assets
+  :description "Search paths, cached asset loading and hot-reload detection for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:uiop)
+  :serial t
+  :components ((:file "src/assets/package")
+               (:file "src/assets/assets")))
+
+(asdf:defsystem #:lwlgl/obj
+  :description "Dependency-free Wavefront OBJ parser producing indexed GPU-ready vertex streams."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/math #:uiop)
+  :serial t
+  :components ((:file "src/obj/package")
+               (:file "src/obj/obj")))
+
+(asdf:defsystem #:lwlgl/opengl
+  :description "Runtime-loaded OpenGL bindings for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:lwlgl/glfw #:lwlgl/math #:cffi)
+  :serial t
+  :components ((:file "src/opengl/package")
+               (:file "src/opengl/constants")
+               (:file "src/opengl/loader")
+               (:file "src/opengl/functions")
+               (:file "src/opengl/helpers")))
+
+(asdf:defsystem #:lwlgl/openal
+  :description "OpenAL/ALC bindings, device discovery, capture, WAV loading and streaming helpers for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:cffi)
+  :serial t
+  :components ((:file "src/openal/package")
+               (:file "src/openal/raw")
+               (:file "src/openal/audio")
+               (:file "src/openal/wav")))
+
+(asdf:defsystem #:lwlgl/vulkan
+  :description "Vulkan loader and bootstrap introspection for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:cffi)
+  :serial t
+  :components ((:file "src/vulkan/package")
+               (:file "src/vulkan/loader")))
+
+(asdf:defsystem #:lwlgl/opencl
+  :description "OpenCL platform/device discovery bindings for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:cffi)
+  :serial t
+  :components ((:file "src/opencl/package")
+               (:file "src/opencl/raw")
+               (:file "src/opencl/discovery")))
+
+(asdf:defsystem #:lwlgl/stb
+  :description "stb_image bindings through the bundled LWLGL native shim."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:cffi)
+  :serial t
+  :components ((:file "src/stb/package")
+               (:file "src/stb/image")))
+
+(asdf:defsystem #:lwlgl/gfx
+  :description "OpenGL integration helpers: shader includes, image textures and OBJ GPU meshes."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/opengl #:lwlgl/stb #:lwlgl/obj #:cffi #:uiop)
+  :serial t
+  :components ((:file "src/gfx/package")
+               (:file "src/gfx/gfx")))
+
+(asdf:defsystem #:lwlgl
+  :description "Lightweight Lisp Game Library: modular low-level native game-development bindings and utilities for Common Lisp."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:lwlgl/math #:lwlgl/util #:lwlgl/glfw #:lwlgl/input
+               #:lwlgl/assets #:lwlgl/obj #:lwlgl/opengl #:lwlgl/openal
+               #:lwlgl/vulkan #:lwlgl/opencl #:lwlgl/stb #:lwlgl/gfx)
+  :components ())
+
+(asdf:defsystem #:lwlgl/examples
+  :description "Runnable LWLGL examples."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl)
+  :serial t
+  :components ((:file "examples/package")
+               (:file "examples/hello-window")
+               (:file "examples/triangle")
+               (:file "examples/instanced-triangles")
+               (:file "examples/input-demo")
+               (:file "examples/audio-tone")
+               (:file "examples/system-info")
+               (:file "examples/toolbox-demo")))
+
+(asdf:defsystem #:lwlgl/tests
+  :description "LWLGL tests that do not require a graphics/audio device."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.3.2"
+  :depends-on (#:lwlgl/core #:lwlgl/math #:lwlgl/util #:lwlgl/assets #:lwlgl/obj)
+  :serial t
+  :components ((:file "tests/package")
+               (:file "tests/tests"))
+  :perform (asdf:test-op (o c)
+             (declare (ignore o c))
+             (uiop:symbol-call "LWLGL.TESTS" "RUN-TESTS")))
