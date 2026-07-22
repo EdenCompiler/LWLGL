@@ -8,7 +8,40 @@
 
 LWLGL is a modular Common Lisp library for low-level game, graphics, audio, compute, and native-platform programming in the spirit of LWJGL. It does not try to be a game engine; instead, it provides composable bindings and thin utilities around GLFW, OpenGL, OpenAL, Vulkan loader discovery, OpenCL discovery, and stb_image, plus Lisp-native math, input, assets, profiling, OBJ loading, and graphics integration helpers.
 
-Current version: 1.0.0.
+**Current stable release: 1.0.0**
+
+![LWLGL version](https://img.shields.io/badge/LWLGL-1.0.0-blue)
+![Common Lisp](https://img.shields.io/badge/Common%20Lisp-CFFI-informational)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+## What 1.0.0 means
+
+LWLGL 1.0.0 is the first release built around the new LWJGL-style binding architecture. The public native API now uses versioned packages, checked/raw call pairs, explicit capabilities and providers, dispatchable handles, owned callback resources, and expanded native-memory utilities. The examples have been migrated to this canonical 1.0 API.
+
+The versioned package names describe **API organization and the version in which wrapped commands belong**; they do not claim complete registry coverage. In 1.0.0, coverage is intentionally different by subsystem:
+
+| Subsystem | 1.0.0 status |
+| --- | --- |
+| GLFW | Substantial window, context, monitor, input, callback, gamepad, clipboard, and Vulkan-interop coverage |
+| OpenGL | Curated runtime-loaded rendering surface covering the core features used by the included 2D/3D examples; not every OpenGL 1.1–4.6 command or extension is wrapped yet |
+| OpenAL / ALC | Practical playback, spatial audio, streaming, device discovery, WAV, and capture support |
+| EGL | EGL 1.5 bootstrap/loader surface |
+| OpenGL ES | Capability-dispatched GLES 2.0 bootstrap commands re-exported through the versioned GLES packages; not complete GLES 2.0–3.2 registry coverage |
+| Vulkan | Loader/bootstrap discovery, version/layer/extension inspection, capabilities, and GLFW surface helpers; not a full Vulkan command binding yet |
+| OpenCL | Platform/device discovery and capability reporting; not a full compute command binding yet |
+| stb_image | Image loading through the bundled native shim |
+
+In other words, **1.0.0 refers to the library release and API architecture, not to complete feature parity with every module in Java LWJGL**. LWLGL 1.0.0 is already suitable as a low-level foundation for Common Lisp applications and OpenGL-based game/engine development, while broader generated registry coverage remains future work.
+
+## 1.0.0 release highlights
+
+- canonical checked/native pairs such as `GL-*` / `NGL-*`, `GLFW-*`, `AL-*`, `CL-*`, `VK-*`, and `EGL-*`;
+- versioned packages for OpenGL 1.1–4.6/core profiles, GLFW 3.4, OpenAL/ALC 1.0–1.1, OpenCL 1.0–3.0, Vulkan 1.0–1.4, EGL 1.5, and OpenGL ES 2.0–3.2;
+- shared function providers, capability objects, dispatchable handles, and explicitly owned callback resources;
+- typed/pointer native buffers, cursor/limit semantics, UTF-8 helpers, `MEM-*` utilities, and nested stack allocation;
+- expanded declarative binding-generator metadata for types, structs, handles, callbacks, versions, profiles, extensions, and dispatch;
+- migrated examples plus new native-memory, capabilities, OpenGL-info, EGL-info, spinning-cube, procedural-texture, framebuffer/readback, Vulkan-readiness, instancing, and positional-audio examples;
+- expanded device-free tests for the canonical 1.0 API.
 
 ## Highlights
 
@@ -52,6 +85,11 @@ Or load only selected subsystems:
     (asdf:load-system :lwlgl/opengles)
     (asdf:load-system :lwlgl/egl)
     (asdf:load-system :lwlgl/openal)
+    (asdf:load-system :lwlgl/vulkan)
+    (asdf:load-system :lwlgl/opencl)
+    (asdf:load-system :lwlgl/stb)
+    (asdf:load-system :lwlgl/input)
+    (asdf:load-system :lwlgl/util)
     (asdf:load-system :lwlgl/assets)
     (asdf:load-system :lwlgl/obj)
     (asdf:load-system :lwlgl/gfx)
@@ -438,7 +476,7 @@ The examples under `examples/` are also intended as executable documentation.
 
 ## Linux / Wayland startup safety
 
-LWLGL 0.3.2 disables GLFW's optional libdecor GTK plugin by default on detected Wayland sessions. This avoids a class of host-runtime crashes seen when GTK/libdecor is loaded inside SBCL. Override the backend before starting SBCL when needed:
+The Linux/Wayland safety behavior introduced in LWLGL 0.3.2 remains active in 1.0.0: it disables GLFW's optional libdecor GTK plugin by default on detected Wayland sessions. This avoids a class of host-runtime crashes seen when GTK/libdecor is loaded inside SBCL. Override the backend before starting SBCL when needed:
 
 ```bash
 LWLGL_GLFW_PLATFORM=x11 sbcl       # force X11/XWayland on GLFW 3.4+
@@ -452,7 +490,7 @@ Inspect startup state from Lisp with `(lwlgl.glfw:glfw-diagnostics)`.
 
 ### SBCL and native floating-point traps
 
-LWLGL 0.3.2 protects `lwlgl.glfw:with-glfw` from SBCL floating-point traps that can be triggered inside native window-system or graphics-driver code. If you integrate another native multimedia API directly, wrap that native scope with `lwlgl.core:with-native-floating-point-environment`.
+The SBCL native floating-point protection introduced in LWLGL 0.3.2 remains part of 1.0.0 and protects `lwlgl.glfw:with-glfw` from SBCL floating-point traps that can be triggered inside native window-system or graphics-driver code. If you integrate another native multimedia API directly, wrap that native scope with `lwlgl.core:with-native-floating-point-environment`.
 
 Version 1.0.0 establishes the binding architecture, but registry coverage is still curated. Vulkan remains a loader/bootstrap layer, OpenCL focuses on discovery, and EGL/OpenGL ES expose bootstrap surfaces rather than every extension. The OBJ loader targets the common geometry subset; `lwlgl/gfx` is a convenience layer rather than a renderer; stb_image requires the bundled shim; and native APIs depend on platform libraries supplied by the host system or application.
 
@@ -468,7 +506,40 @@ MIT. See `LICENSE`.
 
 LWLGL é uma biblioteca modular em Common Lisp para programação de baixo nível voltada a jogos, gráficos, áudio, computação e integração nativa, no espírito do LWJGL. Ela não tenta ser um motor de jogos; em vez disso, oferece bindings componíveis e utilitários finos para GLFW, OpenGL, OpenAL, descoberta do carregador Vulkan, descoberta OpenCL e stb_image, além de matemática, input, assets, profiling, carregamento OBJ e integração gráfica escritos em Lisp.
 
-Versão atual: 1.0.0.
+**Versão estável atual: 1.0.0**
+
+![Versão LWLGL](https://img.shields.io/badge/LWLGL-1.0.0-blue)
+![Common Lisp](https://img.shields.io/badge/Common%20Lisp-CFFI-informational)
+![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)
+
+## O que 1.0.0 significa
+
+LWLGL 1.0.0 é a primeira versão construída em torno da nova arquitetura de bindings no estilo LWJGL. A API nativa pública agora usa pacotes versionados, pares de chamadas checked/raw, capabilities e providers explícitos, handles dispatcháveis, recursos de callback com ownership definido e utilitários de memória nativa expandidos. Os exemplos foram migrados para esta API canônica da versão 1.0.
+
+Os nomes dos pacotes versionados descrevem **a organização da API e a versão à qual os comandos encapsulados pertencem**; eles não afirmam cobertura completa dos registries. Na versão 1.0.0, a cobertura varia intencionalmente por subsistema:
+
+| Subsistema | Estado na 1.0.0 |
+| --- | --- |
+| GLFW | Cobertura substancial de janelas, contextos, monitores, input, callbacks, gamepads, clipboard e interoperabilidade Vulkan |
+| OpenGL | Superfície curada e carregada em runtime cobrindo os recursos centrais usados pelos exemplos 2D/3D; ainda não encapsula todos os comandos ou extensões do OpenGL 1.1–4.6 |
+| OpenAL / ALC | Suporte prático a reprodução, áudio espacial, streaming, descoberta de dispositivos, WAV e captura |
+| EGL | Superfície de loader/bootstrap EGL 1.5 |
+| OpenGL ES | Comandos bootstrap GLES 2.0 com dispatch por capabilities, reexportados pelos pacotes GLES versionados; ainda não é cobertura completa dos registries GLES 2.0–3.2 |
+| Vulkan | Descoberta/bootstrap do loader, inspeção de versão/layers/extensões, capabilities e helpers de surface via GLFW; ainda não é um binding completo de comandos Vulkan |
+| OpenCL | Descoberta de plataformas/dispositivos e relatórios de capabilities; ainda não é um binding completo de computação |
+| stb_image | Carregamento de imagens pelo shim nativo incluído |
+
+Em outras palavras, **1.0.0 é a versão da biblioteca e da arquitetura da API, não uma afirmação de paridade completa com todos os módulos do LWJGL em Java**. O LWLGL 1.0.0 já serve como fundação de baixo nível para aplicações Common Lisp e desenvolvimento de jogos/motores baseados em OpenGL, enquanto uma cobertura mais ampla gerada a partir dos registries continua como trabalho futuro.
+
+## Principais novidades da 1.0.0
+
+- pares canônicos checked/native como `GL-*` / `NGL-*`, `GLFW-*`, `AL-*`, `CL-*`, `VK-*` e `EGL-*`;
+- pacotes versionados para OpenGL 1.1–4.6/core profiles, GLFW 3.4, OpenAL/ALC 1.0–1.1, OpenCL 1.0–3.0, Vulkan 1.0–1.4, EGL 1.5 e OpenGL ES 2.0–3.2;
+- function providers compartilhados, capability objects, handles dispatcháveis e recursos de callback com ownership explícito;
+- buffers nativos tipados/de ponteiros, semântica cursor/limit, helpers UTF-8, utilitários `MEM-*` e alocação em stack aninhada;
+- metadados expandidos no gerador declarativo para tipos, structs, handles, callbacks, versões, profiles, extensões e dispatch;
+- exemplos migrados e novos exemplos de memória nativa, capabilities, informações OpenGL/EGL, cubo giratório, textura procedural, framebuffer/readback, preparação Vulkan, instancing e áudio posicional;
+- testes sem dispositivo ampliados para a API canônica 1.0.
 
 ## Destaques
 
@@ -512,6 +583,11 @@ Ou carregue apenas subsistemas específicos:
     (asdf:load-system :lwlgl/opengles)
     (asdf:load-system :lwlgl/egl)
     (asdf:load-system :lwlgl/openal)
+    (asdf:load-system :lwlgl/vulkan)
+    (asdf:load-system :lwlgl/opencl)
+    (asdf:load-system :lwlgl/stb)
+    (asdf:load-system :lwlgl/input)
+    (asdf:load-system :lwlgl/util)
     (asdf:load-system :lwlgl/assets)
     (asdf:load-system :lwlgl/obj)
     (asdf:load-system :lwlgl/gfx)
@@ -830,6 +906,10 @@ A fronteira é proposital: LWLGL fornece capacidades de baixo nível e pequenos 
 
 ## Sistemas
 
+- `lwlgl/bindings` — agregado com runtime nativo e bindings de baixo nível;
+- `lwlgl/extras` — agregado com utilitários opcionais escritos em Lisp e helpers de integração;
+- `lwlgl/all` — todos os bindings, extras e infraestrutura do gerador de bindings;
+- `lwlgl/bindgen` — geração declarativa e determinística de bindings;
 - `lwlgl/core` — plataforma, módulos nativos, memória, símbolos e diagnóstico;
 - `lwlgl/math` — vetores, matrizes, quaternions, transforms, projeções, rays, AABBs, esferas, planos e frustums;
 - `lwlgl/util` — clocks, timestep fixo, interpolação, timers determinísticos e profiling;
@@ -865,7 +945,7 @@ Os arquivos em `examples/` também funcionam como documentação executável.
 
 ## Segurança de inicialização no Linux / Wayland
 
-O LWLGL 0.3.2 desabilita por padrão o plugin GTK opcional do libdecor do GLFW em sessões Wayland detectadas. Isso evita uma classe de falhas do processo quando GTK/libdecor é carregado dentro do SBCL. Para sobrescrever o backend antes de iniciar o SBCL:
+O comportamento de segurança para Linux/Wayland introduzido no LWLGL 0.3.2 continua ativo na 1.0.0: ele desabilita por padrão o plugin GTK opcional do libdecor do GLFW em sessões Wayland detectadas. Isso evita uma classe de falhas do processo quando GTK/libdecor é carregado dentro do SBCL. Para sobrescrever o backend antes de iniciar o SBCL:
 
 ```bash
 LWLGL_GLFW_PLATFORM=x11 sbcl       # força X11/XWayland no GLFW 3.4+
@@ -879,7 +959,7 @@ Inspecione o estado com `(lwlgl.glfw:glfw-diagnostics)`.
 
 ### SBCL e traps nativos de ponto flutuante
 
-O LWLGL 0.3.2 protege `lwlgl.glfw:with-glfw` contra traps de ponto flutuante do SBCL que podem ser disparados dentro do sistema de janelas ou do driver gráfico. Ao integrar diretamente outra API multimídia nativa, envolva esse escopo com `lwlgl.core:with-native-floating-point-environment`.
+A proteção contra traps nativos de ponto flutuante introduzida no LWLGL 0.3.2 continua fazendo parte da 1.0.0 e protege `lwlgl.glfw:with-glfw` contra traps de ponto flutuante do SBCL que podem ser disparados dentro do sistema de janelas ou do driver gráfico. Ao integrar diretamente outra API multimídia nativa, envolva esse escopo com `lwlgl.core:with-native-floating-point-environment`.
 
 A versão 1.0.0 estabelece a arquitetura dos bindings, mas a cobertura dos registries ainda é curada. Vulkan continua como camada de loader/bootstrap, OpenCL se concentra em descoberta, e EGL/OpenGL ES expõem superfícies de bootstrap em vez de todas as extensões. O parser OBJ cobre o subconjunto geométrico comum; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige o shim incluído; e as APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
 
