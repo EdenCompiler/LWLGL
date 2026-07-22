@@ -1,4 +1,4 @@
-# LWLGL 0.4 API Guide
+# LWLGL 0.5 API Guide
 
 This guide highlights the convenience layer. Raw/native-style functions remain available in the module packages.
 
@@ -11,6 +11,21 @@ This guide highlights the convenience layer. Raw/native-style functions remain a
 (lwlgl.core:with-native-buffer (buffer :float 4 :initial-element 0.0)
   (setf (lwlgl.core:buffer-ref buffer 0) 1.0))
 ```
+
+Aligned buffers expose capacity and can create borrowed slices:
+
+```lisp
+(lwlgl.core:with-native-buffer (buffer :float 16 :alignment 16)
+  (let ((view (lwlgl.core:slice-native-buffer buffer 4 8)))
+    (lwlgl.core:fill-native-buffer view 1.0)))
+
+(lwlgl.core:with-native-arena (arena)
+  (let ((vertices (lwlgl.core:arena-alloc arena :float 1024))
+        (indices (lwlgl.core:arena-alloc arena :unsigned-int 256)))
+    ...))
+```
+
+Views become invalid when their owner is freed. Bounds, lifetime, and read-only checks are enabled by default and may be configured with `CONFIGURE-RUNTIME`.
 
 ## Math
 
@@ -242,6 +257,17 @@ Required order:
 (lwlgl.glfw:make-context-current window)
 (lwlgl.opengl:load-opengl)
 ```
+
+`LOAD-OPENGL` also returns the created capability object as its third value. For applications with multiple materially different contexts, create and select capability objects explicitly:
+
+```lisp
+(defparameter *gl-caps* (lwlgl.opengl:create-gl-capabilities))
+
+(lwlgl.opengl:with-gl-capabilities (*gl-caps*)
+  (lwlgl.opengl:gl-clear lwlgl.opengl:color-buffer-bit))
+```
+
+`REGISTERED-GL-FUNCTIONS` and `GL-FUNCTION-METADATA` expose the declarative signatures used by tooling and documentation.
 
 Context information:
 

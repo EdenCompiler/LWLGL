@@ -7,7 +7,15 @@
         :lisp-version (lisp-implementation-version)
         :platform (platform)
         :architecture (architecture)
+        :configuration
+        (list :checks-enabled
+              (runtime-configuration-checks-enabled-p *runtime-configuration*)
+              :debug-memory
+              (runtime-configuration-debug-memory-p *runtime-configuration*)
+              :debug-loader
+              (runtime-configuration-debug-loader-p *runtime-configuration*))
         :native-search-paths (copy-list *native-search-paths*)
+        :native-bundle-roots (copy-list *native-bundle-roots*)
         :modules
         (mapcar (lambda (module)
                   (list :name (native-module-name module)

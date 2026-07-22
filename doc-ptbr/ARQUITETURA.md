@@ -30,17 +30,17 @@ lwlgl/math        (Lisp puro)
 lwlgl             (sistema agregador)
 ```
 
-Cada sistema pode ser carregado separadamente.
+Cada sistema pode ser carregado separadamente. `lwlgl/bindings` agrega o runtime e os bindings nativos; `lwlgl/extras` agrega helpers Lisp opcionais; e `lwlgl/all` carrega ambos junto do gerador. Durante o ciclo de compatibilidade 0.5, `lwlgl` continua equivalente a `lwlgl/all`.
 
 ## OpenGL
 
-`DEFINE-GL-FUNCTION` registra funções resolvidas via `glfwGetProcAddress`. O contexto precisa estar atual antes de:
+`DEFINE-GL-FUNCTION` registra funções resolvidas via `glfwGetProcAddress` e metadados introspectáveis de cada assinatura. O contexto precisa estar atual antes de:
 
 ```lisp
 (lwlgl.opengl:load-opengl)
 ```
 
-O loader diferencia funções obrigatórias e opcionais. Funções opcionais ausentes não fazem o carregamento inteiro falhar.
+O loader diferencia funções obrigatórias e opcionais. `CREATE-GL-CAPABILITIES` cria uma tabela de dispatch associada ao contexto atual e `WITH-GL-CAPABILITIES` a seleciona dinamicamente. `LOAD-OPENGL` preserva a API anterior e ativa o novo objeto.
 
 ## Callbacks GLFW
 
@@ -60,6 +60,8 @@ O LWLGL mantém handles nativos visíveis. Macros de escopo reduzem vazamentos:
 - `WITH-NATIVE-BUFFER`, `WITH-FOREIGN-ARRAY`
 - macros `WITH-BOUND-*` do OpenGL
 
+`NATIVE-BUFFER` também registra capacidade em bytes, tamanho de elemento, alinhamento, ownership, estado read-only e lifetime do buffer pai. Views/slices emprestados não liberam a memória do owner. `WITH-NATIVE-ARENA` agrupa várias alocações sob um lifetime determinístico.
+
 ## Matemática
 
 `lwlgl/math` é Lisp puro. Matrizes 4×4 são arrays de 16 `single-float` em ordem column-major, compatíveis com upload direto ao OpenGL.
@@ -78,7 +80,7 @@ A camada fornece fundamentos de runtime, não uma engine de física: vetores, ma
 
 ## Estratégia de expansão
 
-A arquitetura foi organizada para receber bindings gerados de registries oficiais (Khronos etc.) sem transformar o core em um monólito. Helpers manuais devem continuar pequenos, auditáveis e opcionais.
+`lwlgl/bindgen` lê especificações S-expression declarativas com reader evaluation desabilitada, valida nomes/assinaturas, calcula fingerprint determinístico e emite source reproduzível. `bindings/opengl-bootstrap.sexp` é o primeiro manifesto fixado. Importadores de registries oficiais podem gerar essa representação intermediária sem transformar o core em um monólito.
 
 
 ## Assets, formatos e integração

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Added deterministic declarative binding-generator infrastructure with validation, source fingerprints, and OpenGL binding metadata introspection.
+- Added per-context OpenGL capability objects and dynamically scoped dispatch while preserving the existing loader API.
+- Expanded native buffers with alignment/capacity metadata, borrowed views, slices, read-only protection, lifetime checks, copying/filling, and scoped native arenas.
+- Added runtime safety/diagnostic configuration.
+- Added `lwlgl/bindings`, `lwlgl/extras`, and `lwlgl/all` system aggregators; `lwlgl` remains a compatibility alias for the complete system.
+- Added packaged-native bundle root discovery using stable OS/architecture triples.
+- Added Linux/SBCL CI for the device-free suite and generated-binding freshness.
+- Expanded the device-free suite from 70 to 91 checks.
+
 ## 0.4.1
 
 - Fixed `frustum-from-matrix` local-function scoping on conforming Common Lisp implementations by using `LABELS`, eliminating the undefined `LWLGL.MATH::COEFFICIENT` style warning and runtime failure.

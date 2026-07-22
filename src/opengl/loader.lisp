@@ -1,36 +1,75 @@
 (in-package #:lwlgl.opengl)
 
-(defvar *gl-functions* (make-hash-table :test #'equal))
+(defvar *gl-functions* (make-hash-table :test #'equal)
+  "Legacy function table. It aliases the table in *CURRENT-GL-CAPABILITIES* after loading.")
 (defvar *gl-required-functions* '())
 (defvar *gl-optional-functions* '())
+(defvar *gl-function-metadata* (make-hash-table :test #'equal))
 (defvar *opengl-loaded-p* nil)
 
-(defun opengl-loaded-p () *opengl-loaded-p*)
+(defstruct (gl-capabilities (:constructor %make-gl-capabilities))
+  (functions (make-hash-table :test #'equal) :type hash-table)
+  (missing-required '() :type list)
+  context-address
+  loaded-at)
+
+(defvar *current-gl-capabilities* nil
+  "Dynamically active OpenGL dispatch table. Each thread/context may bind its own value.")
+
+(defun opengl-loaded-p ()
+  (not (null *current-gl-capabilities*)))
+
+(defun gl-capabilities-complete-p (capabilities)
+  (null (gl-capabilities-missing-required capabilities)))
+
+(defun %current-context-address ()
+  (let ((pointer (ignore-errors (lwlgl.glfw:current-context))))
+    (unless (or (null pointer) (cffi:null-pointer-p pointer))
+      (cffi:pointer-address pointer))))
 
 (defun %resolve-gl-function (name)
   (let ((pointer (lwlgl.glfw:get-proc-address name)))
     (unless (or (null pointer) (cffi:null-pointer-p pointer)) pointer)))
 
-(defun require-gl-function (name)
-  (or (gethash name *gl-functions*)
+(defun %capability-table (&optional capabilities)
+  (if capabilities
+      (gl-capabilities-functions capabilities)
+      (if *current-gl-capabilities*
+          (gl-capabilities-functions *current-gl-capabilities*)
+          *gl-functions*)))
+
+(defun require-gl-function (name &optional capabilities)
+  (or (gethash name (%capability-table capabilities))
       (error 'lwlgl.core:missing-native-symbol :name name)))
 
-(defun gl-function-available-p (name)
-  (let ((pointer (gethash name *gl-functions*)))
+(defun gl-function-available-p (name &optional capabilities)
+  (let ((pointer (gethash name (%capability-table capabilities))))
     (and pointer (not (cffi:null-pointer-p pointer)))))
 
+(defun gl-function-metadata (name)
+  "Returns the generated/declarative metadata plist registered for native NAME."
+  (copy-tree (gethash name *gl-function-metadata*)))
+
+(defun registered-gl-functions ()
+  "Returns all registered OpenGL function metadata sorted by native name."
+  (sort (loop for value being the hash-values of *gl-function-metadata*
+              collect (copy-tree value))
+        #'string< :key (lambda (entry) (getf entry :native-name))))
+
 (defmacro define-gl-function (lisp-name c-name return-type arguments &key optional)
-  "Defines an OpenGL call resolved through glfwGetProcAddress.
-OPTIONAL functions are loaded when available but do not make LOAD-OPENGL fail."
-  (let ((pointer-var (intern (format nil "*~A-POINTER*" (string-upcase lisp-name)) *package*))
-        (function-pointer (gensym "FUNCTION-POINTER")))
+  "Defines a capability-dispatched OpenGL call and registers binding metadata."
+  (let ((function-pointer (gensym "FUNCTION-POINTER")))
     `(progn
-       (defvar ,pointer-var nil)
-       (eval-when (:load-toplevel :execute)
-         (pushnew ,c-name ,(if optional '*gl-optional-functions* '*gl-required-functions*) :test #'string=))
+       (eval-when (:compile-toplevel :load-toplevel :execute)
+         (pushnew ,c-name ,(if optional '*gl-optional-functions* '*gl-required-functions*)
+                  :test #'string=)
+         (setf (gethash ,c-name *gl-function-metadata*)
+               (list :lisp-name ',lisp-name :native-name ,c-name
+                     :return-type ',return-type :arguments ',arguments
+                     :optional ,(not (null optional)))))
        (defun ,lisp-name ,(mapcar #'first arguments)
-         ,(format nil "Dynamic binding for ~A." c-name)
-         (let ((,function-pointer (or ,pointer-var (gethash ,c-name *gl-functions*))))
+         ,(format nil "Capability-dispatched binding for ~A." c-name)
+         (let ((,function-pointer (gethash ,c-name (%capability-table))))
            (unless ,function-pointer
              ,(if optional
                   `(return-from ,lisp-name nil)
@@ -40,26 +79,63 @@ OPTIONAL functions are loaded when available but do not make LOAD-OPENGL fail."
             ,@(loop for (name type) in arguments append (list type name))
             ,return-type))))))
 
-(defun load-opengl (&key (error-on-missing t))
-  "Resolves all registered OpenGL functions. A current context is required."
-  (clrhash *gl-functions*)
-  (let ((missing-required '())
-        (all (remove-duplicates (append *gl-required-functions* *gl-optional-functions*) :test #'string=)))
+(defun create-gl-capabilities (&key (error-on-missing t))
+  "Resolves registered commands for the context current on this thread."
+  (let* ((functions (make-hash-table :test #'equal))
+         (missing-required '())
+         (all (remove-duplicates
+               (append *gl-required-functions* *gl-optional-functions*) :test #'string=)))
     (dolist (name all)
       (let ((pointer (%resolve-gl-function name)))
         (if pointer
-            (setf (gethash name *gl-functions*) pointer)
+            (setf (gethash name functions) pointer)
             (when (member name *gl-required-functions* :test #'string=)
               (push name missing-required)))))
-    (setf *opengl-loaded-p* t)
-    (when (and error-on-missing missing-required)
-      (error "Required OpenGL functions missing from the current context: ~{~A~^, ~}"
-             (sort missing-required #'string<)))
-    (values (null missing-required) (nreverse missing-required))))
+    (setf missing-required (sort missing-required #'string<))
+    (let ((capabilities
+            (%make-gl-capabilities
+             :functions functions :missing-required missing-required
+             :context-address (%current-context-address)
+             :loaded-at (get-internal-real-time))))
+      (when (and error-on-missing missing-required)
+        (error "Required OpenGL functions missing from the current context: ~{~A~^, ~}"
+               missing-required))
+      capabilities)))
+
+(defmacro with-gl-capabilities ((capabilities) &body body)
+  "Executes BODY using CAPABILITIES for OpenGL command dispatch."
+  (let ((value (gensym "CAPABILITIES"))
+        (current (gensym "CURRENT-CONTEXT")))
+    `(let* ((,value ,capabilities)
+            (,current (%current-context-address)))
+       (when (and (lwlgl.core:runtime-configuration-checks-enabled-p
+                   lwlgl.core:*runtime-configuration*)
+                  (gl-capabilities-context-address ,value)
+                  (not (eql ,current (gl-capabilities-context-address ,value))))
+         (error "OpenGL capabilities belong to context address ~S, but ~S is current."
+                (gl-capabilities-context-address ,value) ,current))
+       (let ((*current-gl-capabilities* ,value))
+         ,@body))))
+
+(defun load-opengl (&key (error-on-missing t))
+  "Creates and activates capabilities for the current context.
+Returns success, missing required names, and the capability object."
+  (let ((capabilities (create-gl-capabilities :error-on-missing error-on-missing)))
+    (setf *current-gl-capabilities* capabilities
+          *gl-functions* (gl-capabilities-functions capabilities)
+          *opengl-loaded-p* t)
+    (values (null (gl-capabilities-missing-required capabilities))
+            (copy-list (gl-capabilities-missing-required capabilities))
+            capabilities)))
 
 (defun reload-opengl (&key (error-on-missing t))
-  (setf *opengl-loaded-p* nil)
+  (setf *opengl-loaded-p* nil
+        *current-gl-capabilities* nil
+        *gl-functions* (make-hash-table :test #'equal))
   (load-opengl :error-on-missing error-on-missing))
 
-(defun gl-capabilities ()
-  (sort (loop for name being the hash-keys of *gl-functions* collect name) #'string<))
+(defun gl-capabilities (&optional capabilities)
+  "Returns available command names for CAPABILITIES or the active context."
+  (sort (loop for name being the hash-keys of (%capability-table capabilities)
+              collect name)
+        #'string<))

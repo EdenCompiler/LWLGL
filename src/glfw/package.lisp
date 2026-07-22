@@ -12,7 +12,7 @@
    #:poll-events #:wait-events #:wait-events-timeout #:post-empty-event
    ;; Window
    #:window #:window-handle #:window-title #:window-width #:window-height
-   #:create-window #:destroy-window #:with-window #:make-context-current
+   #:create-window #:destroy-window #:with-window #:make-context-current #:current-context
    #:swap-buffers #:swap-interval #:window-should-close-p #:set-window-should-close
    #:framebuffer-size #:window-size #:set-window-size #:window-position #:set-window-position
    #:set-window-title #:show-window #:hide-window #:focus-window

@@ -74,6 +74,17 @@ O módulo STB é opcional e não impede o uso dos demais módulos.
 
 Os testes centrais não exigem GPU, janela ou dispositivo de áudio.
 
+## Geração de bindings
+
+Manifestos declarativos ficam em `bindings/` e o resultado determinístico versionado fica em `generated/`. Para gerar ou somente verificar:
+
+```bash
+sbcl --script scripts/generate-bindings.lisp
+sbcl --script scripts/generate-bindings.lisp --check
+```
+
+Cada arquivo registra a revisão fixada e seu fingerprint. Arquivos gerados não devem ser editados manualmente.
+
 ## SBCL: `FLOATING-POINT-INVALID-OPERATION` no GLFW ou nos drivers gráficos
 
 O SBCL normalmente habilita traps para operação de ponto flutuante inválida, overflow e divisão por zero. Alguns caminhos nativos do sistema de janelas/driver OpenGL podem executar instruções de ponto flutuante que marcam essas exceções de hardware mesmo quando a chamada nativa pode continuar normalmente. Desde o LWLGL 0.3.2, a biblioteca mascara esses traps durante o escopo dinâmico de `LWLGL.GLFW:WITH-GLFW` e restaura o modo de ponto flutuante anterior ao sair.

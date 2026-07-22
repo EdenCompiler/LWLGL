@@ -1,10 +1,22 @@
-# Guia da API LWLGL 0.4
+# Guia da API LWLGL 0.5
 
 ## Core
 
 ```lisp
 (lwlgl.core:add-native-search-path #P"./native/")
 (lwlgl.core:print-runtime-report)
+```
+
+Buffers alinhados suportam slices emprestados e arenas de lifetime compartilhado:
+
+```lisp
+(lwlgl.core:with-native-buffer (buffer :float 16 :alignment 16)
+  (lwlgl.core:fill-native-buffer
+   (lwlgl.core:slice-native-buffer buffer 4 8) 1.0))
+
+(lwlgl.core:with-native-arena (arena)
+  (let ((vertices (lwlgl.core:arena-alloc arena :float 1024)))
+    ...))
 ```
 
 ## Matemática

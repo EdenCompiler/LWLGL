@@ -21,3 +21,10 @@
   (:report (lambda (condition stream)
              (format stream "Símbolo nativo não encontrado: ~A"
                      (missing-native-symbol-name condition)))))
+
+(define-condition native-memory-error (lwlgl-error)
+  ((buffer :initarg :buffer :reader native-memory-error-buffer)
+   (reason :initarg :reason :reader native-memory-error-reason))
+  (:report (lambda (condition stream)
+             (format stream "Invalid native-memory operation: ~A"
+                     (native-memory-error-reason condition)))))

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  device-free-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Common Lisp dependencies
+        run: sudo apt-get update && sudo apt-get install -y sbcl cl-cffi
+      - name: Run device-free suite
+        run: sbcl --script run-tests.lisp
+      - name: Verify generated bindings
+        run: sbcl --script scripts/generate-bindings.lisp --check

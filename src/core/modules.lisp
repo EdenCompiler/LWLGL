@@ -1,7 +1,9 @@
 (in-package #:lwlgl.core)
 
-(defparameter *debug-native-loading* nil)
+(defvar *debug-native-loading* nil)
 (defparameter *native-search-paths* '())
+(defparameter *native-bundle-roots* '()
+  "Directories containing native artifacts, optionally grouped by platform triple.")
 (defvar *native-modules* (make-hash-table :test #'eq))
 
 (defstruct native-module
@@ -29,6 +31,33 @@
     (pushnew absolute cffi:*foreign-library-directories* :test #'string=)
     absolute))
 
+(defun native-platform-triple ()
+  "Returns the stable directory name used for packaged native artifacts."
+  (format nil "~(~A~)-~(~A~)" (platform) (architecture)))
+
+(defun add-native-bundle-root (path)
+  "Adds a root searched for packaged native artifacts before system libraries."
+  (let ((directory (uiop:ensure-directory-pathname path)))
+    (pushnew directory *native-bundle-roots* :test #'equal)
+    directory))
+
+(defun native-library-candidates (module-or-name)
+  "Returns existing packaged paths followed by system library names for MODULE-OR-NAME."
+  (let* ((module (if (native-module-p module-or-name)
+                     module-or-name
+                     (or (find-native-module module-or-name)
+                         (error 'native-library-error :module module-or-name
+                                :cause "módulo não registrado"))))
+         (names (native-module-libraries module))
+         (triple-directory (uiop:ensure-directory-pathname (native-platform-triple))))
+    (append
+     (loop for root in *native-bundle-roots* append
+       (loop for name in names
+             for triple-path = (merge-pathnames name (merge-pathnames triple-directory root))
+             for flat-path = (merge-pathnames name root)
+             append (remove-if-not #'probe-file (list triple-path flat-path))))
+     (copy-list names))))
+
 (defun %try-load-library (candidate)
   (when *debug-native-loading*
     (format *trace-output* "~&[LWLGL] tentando carregar ~A~%" candidate))
@@ -42,7 +71,7 @@
     (if (native-module-loaded-p module)
         module
         (let ((last-error nil))
-          (dolist (candidate (native-module-libraries module))
+          (dolist (candidate (native-library-candidates module))
             (handler-case
                 (let ((handle (%try-load-library candidate)))
                   (setf (native-module-handle module) handle

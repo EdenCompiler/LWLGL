@@ -121,6 +121,10 @@
 (defun make-context-current (window)
   (%glfw-make-context-current (if window (window-handle window) (cffi:null-pointer))))
 
+(defun current-context ()
+  "Returns the native pointer of the OpenGL/OpenGL ES context current on this thread."
+  (%glfw-get-current-context))
+
 (defun swap-buffers (window) (%glfw-swap-buffers (window-handle window)))
 (defun window-should-close-p (window) (not (zerop (%glfw-window-should-close (window-handle window)))))
 (defun set-window-should-close (window value)

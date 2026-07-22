@@ -2,21 +2,32 @@
   :description "LWLGL core: native modules, memory utilities and diagnostics."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:cffi #:uiop)
   :serial t
   :components ((:file "src/core/package")
                (:file "src/core/platform")
                (:file "src/core/conditions")
+               (:file "src/core/config")
                (:file "src/core/modules")
                (:file "src/core/memory")
                (:file "src/core/runtime")))
+
+(asdf:defsystem #:lwlgl/bindgen
+  :description "Deterministic declarative binding generator for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.5.0"
+  :depends-on (#:uiop)
+  :serial t
+  :components ((:file "src/generator/package")
+               (:file "src/generator/generator")))
 
 (asdf:defsystem #:lwlgl/math
   :description "Allocation-conscious vectors, matrices, quaternions, geometry queries and frustum-culling helpers for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :serial t
   :components ((:file "src/math/package")
                (:file "src/math/vectors")
@@ -29,7 +40,7 @@
   :description "Timing, fixed-step simulation, deterministic timers and lightweight profiling for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core)
   :serial t
   :components ((:file "src/util/package")
@@ -41,7 +52,7 @@
   :description "GLFW bindings and idiomatic Common Lisp window/input helpers."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:cffi)
   :serial t
   :components ((:file "src/glfw/package")
@@ -53,7 +64,7 @@
   :description "Stateful keyboard/mouse input, composite bindings and named 1D/2D action maps built on LWLGL GLFW callbacks."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/glfw)
   :serial t
   :components ((:file "src/input/package")
@@ -64,7 +75,7 @@
   :description "Search paths, cached/bulk asset loading, cache inspection and hot-reload notifications for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:uiop)
   :serial t
   :components ((:file "src/assets/package")
@@ -74,7 +85,7 @@
   :description "Dependency-free Wavefront OBJ parser producing indexed GPU-ready vertex streams."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/math #:uiop)
   :serial t
   :components ((:file "src/obj/package")
@@ -84,7 +95,7 @@
   :description "Runtime-loaded OpenGL bindings for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:lwlgl/glfw #:lwlgl/math #:cffi)
   :serial t
   :components ((:file "src/opengl/package")
@@ -97,7 +108,7 @@
   :description "OpenAL/ALC bindings, device discovery, capture, WAV loading and streaming helpers for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:cffi)
   :serial t
   :components ((:file "src/openal/package")
@@ -109,7 +120,7 @@
   :description "Vulkan loader and bootstrap introspection for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:cffi)
   :serial t
   :components ((:file "src/vulkan/package")
@@ -119,7 +130,7 @@
   :description "OpenCL platform/device discovery bindings for LWLGL."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:cffi)
   :serial t
   :components ((:file "src/opencl/package")
@@ -130,7 +141,7 @@
   :description "stb_image bindings through the bundled LWLGL native shim."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/core #:cffi)
   :serial t
   :components ((:file "src/stb/package")
@@ -140,28 +151,52 @@
   :description "OpenGL integration helpers: shader includes, image textures and OBJ GPU meshes."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
+  :version "0.5.0"
   :depends-on (#:lwlgl/opengl #:lwlgl/stb #:lwlgl/obj #:cffi #:uiop)
   :serial t
   :components ((:file "src/gfx/package")
                (:file "src/gfx/gfx")))
 
-(asdf:defsystem #:lwlgl
-  :description "Lightweight Lisp Game Library: modular low-level native game-development bindings and utilities for Common Lisp."
+(asdf:defsystem #:lwlgl/bindings
+  :description "LWLGL low-level native runtime and independently usable bindings."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
-  :depends-on (#:lwlgl/core #:lwlgl/math #:lwlgl/util #:lwlgl/glfw #:lwlgl/input
-               #:lwlgl/assets #:lwlgl/obj #:lwlgl/opengl #:lwlgl/openal
-               #:lwlgl/vulkan #:lwlgl/opencl #:lwlgl/stb #:lwlgl/gfx)
+  :version "0.5.0"
+  :depends-on (#:lwlgl/core #:lwlgl/glfw #:lwlgl/opengl #:lwlgl/openal
+               #:lwlgl/vulkan #:lwlgl/opencl #:lwlgl/stb)
+  :components ())
+
+(asdf:defsystem #:lwlgl/extras
+  :description "Optional Lisp-native utilities and integration helpers for LWLGL."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.5.0"
+  :depends-on (#:lwlgl/math #:lwlgl/util #:lwlgl/input #:lwlgl/assets
+               #:lwlgl/obj #:lwlgl/gfx)
+  :components ())
+
+(asdf:defsystem #:lwlgl/all
+  :description "All LWLGL bindings, generator infrastructure, and optional utilities."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.5.0"
+  :depends-on (#:lwlgl/bindings #:lwlgl/extras #:lwlgl/bindgen)
+  :components ())
+
+(asdf:defsystem #:lwlgl
+  :description "Compatibility umbrella for LWLGL 0.5; equivalent to lwlgl/all."
+  :author "Bruno"
+  :license "MIT"
+  :version "0.5.0"
+  :depends-on (#:lwlgl/all)
   :components ())
 
 (asdf:defsystem #:lwlgl/examples
   :description "Runnable LWLGL examples."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
-  :depends-on (#:lwlgl)
+  :version "0.5.0"
+  :depends-on (#:lwlgl/all)
   :serial t
   :components ((:file "examples/package")
                (:file "examples/hello-window")
@@ -176,8 +211,9 @@
   :description "LWLGL tests that do not require a graphics/audio device."
   :author "Bruno"
   :license "MIT"
-  :version "0.4.1"
-  :depends-on (#:lwlgl/core #:lwlgl/math #:lwlgl/util #:lwlgl/input #:lwlgl/assets #:lwlgl/obj)
+  :version "0.5.0"
+  :depends-on (#:lwlgl/core #:lwlgl/math #:lwlgl/util #:lwlgl/input #:lwlgl/assets #:lwlgl/obj
+               #:lwlgl/opengl #:lwlgl/bindgen)
   :serial t
   :components ((:file "tests/package")
                (:file "tests/tests"))

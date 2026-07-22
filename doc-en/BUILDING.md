@@ -48,6 +48,12 @@ Put required DLLs somewhere Windows can resolve them, or register a directory ex
 (lwlgl.core:add-native-search-path #P"C:/my-game/native/")
 ```
 
+Applications may also register a native bundle root. LWLGL first checks a platform directory such as `linux-x86-64/`, then the root itself, before falling back to system library names:
+
+```lisp
+(lwlgl.core:add-native-bundle-root #P"./natives/")
+```
+
 Common candidates recognized by LWLGL include `glfw3.dll`, `OpenAL32.dll`, `vulkan-1.dll` and `OpenCL.dll`.
 
 ## macOS
@@ -100,6 +106,17 @@ Core tests do not require a display/audio device:
 ```
 
 Graphics/audio examples require the corresponding native libraries and hardware/driver support.
+
+## Binding generation
+
+Declarative binding manifests live under `bindings/`; deterministic output is committed under `generated/`. Regenerate or verify it with:
+
+```bash
+sbcl --script scripts/generate-bindings.lisp
+sbcl --script scripts/generate-bindings.lisp --check
+```
+
+Each output records its pinned upstream/curated revision and content fingerprint. Generated files must not be edited manually.
 
 ## SBCL: `FLOATING-POINT-INVALID-OPERATION` in GLFW or graphics drivers
 

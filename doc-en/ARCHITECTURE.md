@@ -30,7 +30,7 @@ lwlgl/math        (pure Lisp)
 lwlgl             (umbrella system)
 ```
 
-Applications may load only the systems they need. The umbrella `:lwlgl` system loads everything for convenience.
+Applications may load only the systems they need. `lwlgl/bindings` aggregates the native-facing layer, `lwlgl/extras` aggregates optional Lisp-native helpers, and `lwlgl/all` loads both plus the generator. The umbrella `lwlgl` remains an alias of `lwlgl/all` during the 0.5 compatibility cycle.
 
 ## Native module registry
 
@@ -40,14 +40,14 @@ This keeps native dependencies local to the feature that uses them.
 
 ## OpenGL capability loading
 
-OpenGL entry points are registered with `DEFINE-GL-FUNCTION` and resolved through `glfwGetProcAddress` after a context becomes current.
+OpenGL entry points are registered with `DEFINE-GL-FUNCTION` and resolved through `glfwGetProcAddress` after a context becomes current. Every declaration also records introspectable signature metadata.
 
 ```lisp
 (lwlgl.glfw:make-context-current window)
 (lwlgl.opengl:load-opengl)
 ```
 
-The loader tracks required and optional functions separately. Missing required functions can fail `LOAD-OPENGL`; optional functions simply remain unavailable and can be tested with `GL-FUNCTION-AVAILABLE-P`.
+The loader tracks required and optional functions separately. `CREATE-GL-CAPABILITIES` creates an immutable dispatch table associated with the current context, and `WITH-GL-CAPABILITIES` selects it dynamically. `LOAD-OPENGL` remains the compatibility entry point and activates the newly created object. Missing required functions can fail loading; optional functions simply remain unavailable and can be tested with `GL-FUNCTION-AVAILABLE-P`.
 
 Because capabilities belong to a context/driver combination, call `RELOAD-OPENGL` when switching to a materially different context.
 
@@ -71,6 +71,8 @@ Native handles stay visible. Helpers reduce boilerplate without hiding ownership
 
 Scoped helpers use `UNWIND-PROTECT` so cleanup also happens during non-local exits.
 
+`NATIVE-BUFFER` additionally models byte capacity, element size, alignment, ownership, read-only state, and parent lifetime. Borrowed views and slices never release their owner's memory. `WITH-NATIVE-ARENA` groups several owned allocations under one deterministic lifetime. Bounds/lifetime checks are controlled through `CONFIGURE-RUNTIME` and default to enabled.
+
 ## Math representation
 
 `lwlgl/math` is pure Lisp and does not depend on a native math library. `MAT4` values are 16-element single-float arrays in column-major order, so they can be uploaded directly with `SET-UNIFORM-MAT4`.
@@ -89,7 +91,7 @@ The math layer provides runtime fundamentals rather than a physics engine: vecto
 
 ## Expansion strategy
 
-The handwritten API is organized so large generated bindings can be added later without changing the public architecture. Full Khronos coverage should be generated from official registries where possible, while curated wrappers remain small and optional.
+`lwlgl/bindgen` reads declarative S-expression specifications with reader evaluation disabled, validates names/signatures, computes a deterministic fingerprint, and emits reproducible binding source. `bindings/opengl-bootstrap.sexp` is the initial pinned manifest. Registry importers can target this stable intermediate form, while curated wrappers remain small and optional.
 
 
 ## Assets, formats and integration

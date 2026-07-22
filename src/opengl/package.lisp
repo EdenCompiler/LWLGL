@@ -4,7 +4,11 @@
   (:export
    ;; Loader/capabilities
    #:load-opengl #:reload-opengl #:opengl-loaded-p #:gl-capabilities
+   #:create-gl-capabilities #:with-gl-capabilities #:*current-gl-capabilities*
+   #:gl-capabilities-p #:gl-capabilities-functions #:gl-capabilities-missing-required
+   #:gl-capabilities-context-address #:gl-capabilities-loaded-at #:gl-capabilities-complete-p
    #:gl-function-available-p #:require-gl-function #:define-gl-function #:gl-info #:gl-extensions
+   #:gl-function-metadata #:registered-gl-functions
    ;; Core constants
    #:false-value #:true-value
    #:color-buffer-bit #:depth-buffer-bit #:stencil-buffer-bit
