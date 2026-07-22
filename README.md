@@ -391,7 +391,7 @@ Inspect startup state from Lisp with `(lwlgl.glfw:glfw-diagnostics)`.
 
 LWLGL 0.3.2 protects `lwlgl.glfw:with-glfw` from SBCL floating-point traps that can be triggered inside native window-system or graphics-driver code. If you integrate another native multimedia API directly, wrap that native scope with `lwlgl.core:with-native-floating-point-environment`.
 
-Version 0.4.1 is still an early low-level library. Vulkan is a loader/bootstrap layer rather than generated full Vulkan bindings; OpenCL focuses on discovery rather than complete compute-command coverage; the OBJ loader intentionally targets the common geometry subset and does not yet implement MTL/material parsing, smoothing-group-generated normals, or every vendor extension; `lwlgl/gfx` is a convenience integration layer rather than a renderer; stb_image requires the bundled shim to be built; and native APIs still depend on platform libraries supplied by the host system or application.
+Version 0.4.0 is still an early low-level library. Vulkan is a loader/bootstrap layer rather than generated full Vulkan bindings; OpenCL focuses on discovery rather than complete compute-command coverage; the OBJ loader intentionally targets the common geometry subset and does not yet implement MTL/material parsing, smoothing-group-generated normals, or every vendor extension; `lwlgl/gfx` is a convenience integration layer rather than a renderer; stb_image requires the bundled shim to be built; and native APIs still depend on platform libraries supplied by the host system or application.
 
 Important future directions include generated Vulkan/OpenGL/OpenAL/OpenCL bindings, richer OpenGL debug output and indirect/multi-draw APIs, cursor/image/window-icon helpers, audio streaming abstractions, MTL and glTF import paths, font/text bindings, controller mapping management, native packaging, CI across multiple Lisp implementations, and broader executable tests on real graphics/audio devices.
 
@@ -405,7 +405,7 @@ MIT. See `LICENSE`.
 
 LWLGL é uma biblioteca modular em Common Lisp para programação de baixo nível voltada a jogos, gráficos, áudio, computação e integração nativa, no espírito do LWJGL. Ela não tenta ser um motor de jogos; em vez disso, oferece bindings componíveis e utilitários finos para GLFW, OpenGL, OpenAL, descoberta do carregador Vulkan, descoberta OpenCL e stb_image, além de matemática, input, assets, profiling, carregamento OBJ e integração gráfica escritos em Lisp.
 
-Versão atual: 0.4.1.
+Versão atual: 0.4.0.
 
 ## Destaques
 
@@ -775,7 +775,7 @@ Inspecione o estado com `(lwlgl.glfw:glfw-diagnostics)`.
 
 O LWLGL 0.3.2 protege `lwlgl.glfw:with-glfw` contra traps de ponto flutuante do SBCL que podem ser disparados dentro do sistema de janelas ou do driver gráfico. Ao integrar diretamente outra API multimídia nativa, envolva esse escopo com `lwlgl.core:with-native-floating-point-environment`.
 
-A versão 0.4.1 ainda é uma biblioteca de baixo nível em estágio inicial. Vulkan fornece bootstrap/introspecção do loader em vez de bindings Vulkan completos gerados; OpenCL está concentrado em descoberta, não em toda a API de comandos; o parser OBJ implementa o subconjunto geométrico comum e ainda não cobre MTL/materiais, geração de normals por smoothing groups ou todas as extensões de fornecedores; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige a compilação do shim incluído; e APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
+A versão 0.4.0 ainda é uma biblioteca de baixo nível em estágio inicial. Vulkan fornece bootstrap/introspecção do loader em vez de bindings Vulkan completos gerados; OpenCL está concentrado em descoberta, não em toda a API de comandos; o parser OBJ implementa o subconjunto geométrico comum e ainda não cobre MTL/materiais, geração de normals por smoothing groups ou todas as extensões de fornecedores; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige a compilação do shim incluído; e APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
 
 Direções futuras incluem bindings gerados para Vulkan/OpenGL/OpenAL/OpenCL, debug output e indirect/multi-draw no OpenGL, cursores/ícones de janela, abstrações de streaming de áudio, MTL e glTF, fontes/texto, gerenciamento de mappings de controles, empacotamento nativo, CI em várias implementações Lisp e testes executáveis em dispositivos gráficos/áudio reais.
 
