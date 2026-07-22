@@ -8,7 +8,7 @@
 
 LWLGL is a modular Common Lisp library for low-level game, graphics, audio, compute, and native-platform programming in the spirit of LWJGL. It does not try to be a game engine; instead, it provides composable bindings and thin utilities around GLFW, OpenGL, OpenAL, Vulkan loader discovery, OpenCL discovery, and stb_image, plus Lisp-native math, input, assets, profiling, OBJ loading, and graphics integration helpers.
 
-Current version: 0.4.0.
+Current version: 0.4.1.
 
 ## Highlights
 
