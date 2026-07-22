@@ -23,26 +23,97 @@
   (description :char :count 256))
 
 (defvar *vk-get-instance-proc-addr* nil)
+(defvar *provider* nil)
+
+(defstruct (vk-capabilities-instance (:include lwlgl.core:api-capabilities)
+                                     (:constructor %make-vk-capabilities-instance)))
+(defstruct (vk-capabilities-device (:include lwlgl.core:api-capabilities)
+                                   (:constructor %make-vk-capabilities-device)))
 
 (defun load-vulkan ()
   (lwlgl.core:ensure-native-module :vulkan)
   (setf *vk-get-instance-proc-addr*
-        (lwlgl.core:resolve-foreign-symbol "vkGetInstanceProcAddr" :module :vulkan))
+        (lwlgl.core:resolve-foreign-symbol "vkGetInstanceProcAddr" :module :vulkan)
+        *provider*
+        (lwlgl.core:make-function-provider
+         :name :vulkan
+         :resolver (lambda (name)
+                     (nvk-get-instance-proc-addr (cffi:null-pointer) name))))
   t)
+
+(defun create () (load-vulkan))
+
+(defun destroy ()
+  (setf *provider* nil *vk-get-instance-proc-addr* nil)
+  (lwlgl.core:unload-native-module :vulkan)
+  nil)
+
+(defun get-function-provider () (or *provider* (progn (create) *provider*)))
 
 (defun vulkan-supported-p ()
   (handler-case (progn (load-vulkan) t) (error () nil)))
 
-(defun get-instance-proc-address (instance name)
+(defun nvk-get-instance-proc-addr (instance name)
   (unless *vk-get-instance-proc-addr* (load-vulkan))
   (cffi:foreign-funcall-pointer *vk-get-instance-proc-addr* ()
                                 :pointer instance :string name :pointer))
+
+(defun vk-get-instance-proc-addr (instance name)
+  (nvk-get-instance-proc-addr instance name))
+
+(defun get-instance-proc-address (instance name)
+  (vk-get-instance-proc-addr instance name))
 
 (defun %global-function (name)
   (let ((pointer (get-instance-proc-address (cffi:null-pointer) name)))
     (when (or (null pointer) (cffi:null-pointer-p pointer))
       (error "Vulkan loader does not expose ~A." name))
     pointer))
+
+(defun nvk-enumerate-instance-version (version)
+  (cffi:foreign-funcall-pointer (%global-function "vkEnumerateInstanceVersion") ()
+                                :pointer version :int))
+(defun vk-enumerate-instance-version (version)
+  (nvk-enumerate-instance-version version))
+
+(defun nvk-enumerate-instance-extension-properties (layer-name count properties)
+  (cffi:foreign-funcall-pointer
+   (%global-function "vkEnumerateInstanceExtensionProperties") ()
+   :pointer layer-name :pointer count :pointer properties :int))
+(defun vk-enumerate-instance-extension-properties (layer-name count properties)
+  (nvk-enumerate-instance-extension-properties layer-name count properties))
+
+(defun nvk-enumerate-instance-layer-properties (count properties)
+  (cffi:foreign-funcall-pointer
+   (%global-function "vkEnumerateInstanceLayerProperties") ()
+   :pointer count :pointer properties :int))
+(defun vk-enumerate-instance-layer-properties (count properties)
+  (nvk-enumerate-instance-layer-properties count properties))
+
+(defun create-instance-capabilities (&key instance)
+  (unless *vk-get-instance-proc-addr* (load-vulkan))
+  (let ((functions (make-hash-table :test #'equal)))
+    (dolist (name '("vkGetInstanceProcAddr" "vkEnumerateInstanceVersion"
+                    "vkEnumerateInstanceExtensionProperties"
+                    "vkEnumerateInstanceLayerProperties"))
+      (let ((pointer (if (string= name "vkGetInstanceProcAddr")
+                         *vk-get-instance-proc-addr*
+                         (vk-get-instance-proc-addr
+                          (or instance (cffi:null-pointer)) name))))
+        (when (and pointer (not (cffi:null-pointer-p pointer)))
+          (setf (gethash name functions) pointer))))
+    (%make-vk-capabilities-instance :api :vulkan :version '(1 4)
+                                    :functions functions)))
+
+(defun create-device-capabilities (device get-device-proc-address)
+  (declare (ignore device))
+  (%make-vk-capabilities-device
+   :api :vulkan :version '(1 4)
+   :functions (make-hash-table :test #'equal)
+   :features (let ((features (make-hash-table :test #'equal)))
+               (setf (gethash :get-device-proc-address features)
+                     get-device-proc-address)
+               features)))
 
 (defun make-vulkan-version (major minor patch)
   (logior (ash major 22) (ash minor 12) patch))
@@ -54,7 +125,7 @@
     (if (or (null function) (cffi:null-pointer-p function))
         (make-vulkan-version 1 0 0)
         (cffi:with-foreign-object (version :unsigned-int)
-          (let ((result (cffi:foreign-funcall-pointer function () :pointer version :int)))
+          (let ((result (vk-enumerate-instance-version version)))
             (unless (= result +vk-success+)
               (error "vkEnumerateInstanceVersion failed: ~A" result))
             (cffi:mem-ref version :unsigned-int))))))

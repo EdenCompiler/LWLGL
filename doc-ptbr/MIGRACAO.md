@@ -43,3 +43,16 @@ O sistema agregador `:lwlgl` continua carregando todos os módulos. `lwlgl/tests
 A 0.3 é aditiva para o uso normal da 0.2. Os novos sistemas opcionais são `lwlgl/assets`, `lwlgl/obj` e `lwlgl/gfx`; o sistema agregador `:lwlgl` os carrega automaticamente. Os nomes públicos existentes foram preservados.
 
 O loader OpenGL ganhou entry points opcionais de queries/sync; continue usando checks de capacidade ao suportar contextos antigos. Os novos helpers de matemática, action maps, assets, OBJ, captura e GLFW/Vulkan não substituem as APIs de baixo nível.
+
+## Do LWLGL 0.5 para 1.0
+
+A versão 1.0 torna os nomes no estilo LWJGL a API canônica de baixo nível. Os helpers amigáveis existentes continuam disponíveis, mas novos bindings devem:
+
+- importar um pacote versionado, como `lwlgl.opengl.gl33`, `lwlgl.glfw.glfw34`, `lwlgl.openal.al11`, `lwlgl.opencl.cl30` ou `lwlgl.vulkan.vk14`;
+- chamar entry points checked com o prefixo da API (`GL-*`, `GLFW-*`, `AL-*`, `CL-*`, `VK-*`, `EGL-*`);
+- usar entry points raw orientados a ponteiros com `N` inicial somente quando necessário;
+- obter constantes `+API-NOME+` dos pacotes versionados;
+- criar e vincular capabilities explicitamente para APIs com dispatch por contexto/dispositivo;
+- usar `WITH-MEMORY-STACK` para argumentos temporários e `MEM-ALLOC`/`MEM-FREE` para memória nativa retida.
+
+OpenGL ES e EGL são novos sistemas independentes, `lwlgl/opengles` e `lwlgl/egl`. A cobertura dos registries ainda é curada na 1.0; consulte os predicates de capabilities antes de chamadas opcionais.

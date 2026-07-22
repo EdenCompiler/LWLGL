@@ -1,22 +1,53 @@
 (in-package #:lwlgl.bindgen)
 
+(defstruct binding-argument
+  name type (direction :in) count (nullable-p nil))
+
+(defstruct binding-type name native-name cffi-type category)
+(defstruct binding-struct name native-name fields union-p version extension)
+(defstruct binding-handle name native-name dispatchable-p parent)
+(defstruct binding-callback name native-name return-type arguments)
+(defstruct binding-feature name api version profile extension requires commands constants types)
+
 (defstruct binding-command
-  lisp-name native-name return-type arguments (optional-p nil))
+  lisp-name raw-name native-name return-type arguments (optional-p nil)
+  version profile extension (dispatch :global) documentation)
 
 (defstruct binding-spec
-  name api package revision (commands '()) (constants '()))
+  name api package revision (definer 'define-gl-function)
+  (commands '()) (constants '()) (types '()) (structs '()) (handles '())
+  (callbacks '()) (features '()))
 
 (defun %required (plist key context)
   (or (getf plist key)
       (error "Missing ~S in ~A." key context)))
 
+(defun %parse-argument (form)
+  (if (and (= (length form) 2) (symbolp (first form)))
+      (make-binding-argument :name (first form) :type (second form))
+      (make-binding-argument
+       :name (%required form :name "binding argument")
+       :type (%required form :type "binding argument")
+       :direction (or (getf form :direction) :in)
+       :count (getf form :count)
+       :nullable-p (not (null (getf form :nullable))))))
+
+(defun %raw-name (lisp-name)
+  (intern (concatenate 'string "N" (symbol-name lisp-name))
+          (or (symbol-package lisp-name) *package*)))
+
 (defun %parse-command (form)
+  (let ((lisp-name (%required form :lisp-name "binding command")))
   (make-binding-command
-   :lisp-name (%required form :lisp-name "binding command")
+   :lisp-name lisp-name
+   :raw-name (or (getf form :raw-name) (%raw-name lisp-name))
    :native-name (%required form :native-name "binding command")
    :return-type (%required form :return-type "binding command")
-   :arguments (copy-tree (or (getf form :arguments) '()))
-   :optional-p (not (null (getf form :optional)))))
+   :arguments (mapcar #'%parse-argument (or (getf form :arguments) '()))
+   :optional-p (not (null (getf form :optional)))
+   :version (getf form :version) :profile (getf form :profile)
+   :extension (getf form :extension) :dispatch (or (getf form :dispatch) :global)
+   :documentation (getf form :documentation))))
 
 (defun read-binding-spec (pathname)
   "Reads a declarative binding specification with *READ-EVAL* disabled."
@@ -30,8 +61,14 @@
                :api (%required form :api "binding specification")
                :package (%required form :package "binding specification")
                :revision (%required form :revision "binding specification")
+               :definer (or (getf form :definer) 'define-gl-function)
                :commands (mapcar #'%parse-command (or (getf form :commands) '()))
-               :constants (copy-tree (or (getf form :constants) '())))))
+               :constants (copy-tree (or (getf form :constants) '()))
+               :types (copy-tree (or (getf form :types) '()))
+               :structs (copy-tree (or (getf form :structs) '()))
+               :handles (copy-tree (or (getf form :handles) '()))
+               :callbacks (copy-tree (or (getf form :callbacks) '()))
+               :features (copy-tree (or (getf form :features) '())))))
         (validate-binding-spec spec)
         spec))))
 
@@ -51,8 +88,8 @@
       (setf (gethash (symbol-name (binding-command-lisp-name command)) lisp-names) t
             (gethash (binding-command-native-name command) native-names) t)
       (dolist (argument (binding-command-arguments command))
-        (unless (and (listp argument) (= (length argument) 2)
-                     (symbolp (first argument)))
+        (unless (and (symbolp (binding-argument-name argument))
+                     (member (binding-argument-direction argument) '(:in :out :in-out)))
           (error "Invalid argument descriptor ~S for ~A."
                  argument (binding-command-native-name command)))))
     (dolist (constant (binding-spec-constants spec))
@@ -70,14 +107,31 @@
 (defun %canonical-form (spec)
   (list :name (binding-spec-name spec) :api (binding-spec-api spec)
         :package (binding-spec-package spec) :revision (binding-spec-revision spec)
+        :definer (binding-spec-definer spec)
         :constants (binding-spec-constants spec)
+        :types (binding-spec-types spec) :structs (binding-spec-structs spec)
+        :handles (binding-spec-handles spec) :callbacks (binding-spec-callbacks spec)
+        :features (binding-spec-features spec)
         :commands
         (mapcar (lambda (command)
                   (list :lisp-name (binding-command-lisp-name command)
+                        :raw-name (binding-command-raw-name command)
                         :native-name (binding-command-native-name command)
                         :return-type (binding-command-return-type command)
-                        :arguments (binding-command-arguments command)
-                        :optional (binding-command-optional-p command)))
+                        :arguments
+                        (mapcar (lambda (argument)
+                                  (list :name (binding-argument-name argument)
+                                        :type (binding-argument-type argument)
+                                        :direction (binding-argument-direction argument)
+                                        :count (binding-argument-count argument)
+                                        :nullable (binding-argument-nullable-p argument)))
+                                (binding-command-arguments command))
+                        :optional (binding-command-optional-p command)
+                        :version (binding-command-version command)
+                        :profile (binding-command-profile command)
+                        :extension (binding-command-extension command)
+                        :dispatch (binding-command-dispatch command)
+                        :documentation (binding-command-documentation command)))
                 (binding-spec-commands spec))))
 
 (defun binding-spec-fingerprint (spec)
@@ -105,15 +159,40 @@
                      (symbol-name (first constant)) (second constant)))
            (when (binding-spec-constants spec) (terpri output))
            (dolist (command (binding-spec-commands spec))
-             (format output "(define-gl-function ~(~A~) ~S ~S~%  ("
-                     (symbol-name (binding-command-lisp-name command))
+             (format output "(~(~A~) ~(~A~) ~S ~S~%  ("
+                     (symbol-name (binding-spec-definer spec))
+                     (symbol-name (binding-command-raw-name command))
                      (binding-command-native-name command)
                      (binding-command-return-type command))
              (loop for argument in (binding-command-arguments command)
                    for first = t then nil
                    unless first do (write-char #\Space output)
-                   do (format output "(~(~A~) ~S)" (symbol-name (first argument)) (second argument)))
-             (format output ")~@[ :optional t~])~%" (binding-command-optional-p command)))))
+                   do (format output "(~(~A~) ~S)"
+                              (symbol-name (binding-argument-name argument))
+                              (binding-argument-type argument)))
+             (format output ")~@[ :optional t~]" (binding-command-optional-p command))
+             (when (binding-command-version command)
+               (format output " :version ~S" (binding-command-version command)))
+             (when (binding-command-profile command)
+               (format output " :profile ~S" (binding-command-profile command)))
+             (when (binding-command-extension command)
+               (format output " :extension ~S" (binding-command-extension command)))
+             (unless (eq :global (binding-command-dispatch command))
+               (format output " :dispatch ~S" (binding-command-dispatch command)))
+             (when (binding-command-documentation command)
+               (format output " :documentation ~S" (binding-command-documentation command)))
+             (format output ")~%")
+             (format output "(defun ~(~A~) ("
+                     (symbol-name (binding-command-lisp-name command)))
+             (loop for argument in (binding-command-arguments command)
+                   for first = t then nil
+                   unless first do (write-char #\Space output)
+                   do (format output "~(~A~)" (symbol-name (binding-argument-name argument))))
+             (format output ") (~(~A~)"
+                     (symbol-name (binding-command-raw-name command)))
+             (dolist (argument (binding-command-arguments command))
+               (format output " ~(~A~)" (symbol-name (binding-argument-name argument))))
+             (format output "))~%"))))
     (if stream (emit stream) (with-output-to-string (output) (emit output)))))
 
 (defun write-generated-binding (spec pathname)

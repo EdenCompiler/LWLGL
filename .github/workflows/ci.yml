@@ -16,5 +16,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y sbcl cl-cffi
       - name: Run device-free suite
         run: sbcl --script run-tests.lisp
+      - name: Compile and run device-free examples
+        run: sbcl --script scripts/run-examples.lisp toolbox native-memory capabilities
       - name: Verify generated bindings
         run: sbcl --script scripts/generate-bindings.lisp --check

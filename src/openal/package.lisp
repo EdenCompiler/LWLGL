@@ -2,6 +2,10 @@
   (:use #:cl)
   (:shadow #:position)
   (:export
+   #:create #:destroy #:get-function-provider
+   #:al-capabilities #:al-capabilities-p
+   #:create-capabilities #:get-capabilities #:set-capabilities
+   #:with-capabilities #:al-function-available-p
    ;; Device/context
    #:open-device #:close-device #:create-context #:destroy-context #:make-context-current #:with-openal
    #:openal-devices #:default-openal-device

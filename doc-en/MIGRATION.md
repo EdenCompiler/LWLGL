@@ -43,3 +43,16 @@ The umbrella `:lwlgl` system still loads all modules. `lwlgl/tests` now also dep
 0.3 is additive for normal 0.2 callers. New optional systems are `lwlgl/assets`, `lwlgl/obj`, and `lwlgl/gfx`; the umbrella `:lwlgl` loads them automatically. Existing package-qualified public names are retained.
 
 The OpenGL loader now has more optional query/sync entry points. Applications should continue using capability checks when targeting older contexts. New math, action-map, asset, OBJ, capture, and GLFW/Vulkan helpers do not replace the lower-level APIs.
+
+## From LWLGL 0.5 to 1.0
+
+1.0 makes the LWJGL-style names the canonical low-level API. Existing friendly helper names remain available, but new binding code should:
+
+- import a version package such as `lwlgl.opengl.gl33`, `lwlgl.glfw.glfw34`, `lwlgl.openal.al11`, `lwlgl.opencl.cl30`, or `lwlgl.vulkan.vk14`;
+- call checked entry points with the API prefix (`GL-*`, `GLFW-*`, `AL-*`, `CL-*`, `VK-*`, `EGL-*`);
+- call pointer-oriented raw entry points with the leading `N` only where required;
+- use constants named `+API-NAME+` from version packages;
+- create and bind capability objects explicitly for context/device-dispatched APIs;
+- use `WITH-MEMORY-STACK` for temporary arguments and `MEM-ALLOC`/`MEM-FREE` for retained native storage.
+
+OpenGL ES and EGL are new independent systems, `lwlgl/opengles` and `lwlgl/egl`. Registry coverage remains curated in 1.0, so use the capability predicates before optional calls.

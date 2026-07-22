@@ -5,19 +5,20 @@
   (lwlgl.core:print-runtime-report)
   (format t "~&GLFW: ")
   (handler-case
-      (lwlgl.glfw:with-glfw ()
-        (format t "~A~%" (lwlgl.glfw:version-string))
-        (let ((monitors (lwlgl.glfw:get-monitors)))
+      (lwlgl.glfw.glfw34:glfw-with-glfw ()
+        (format t "~A~%" (lwlgl.glfw.glfw34:glfw-version-string))
+        (let ((monitors (lwlgl.glfw.glfw34:glfw-get-monitors)))
           (format t "Monitors: ~D~%" (length monitors))
           (dolist (monitor monitors)
-            (let ((mode (lwlgl.glfw:monitor-video-mode monitor)))
+            (let ((mode (lwlgl.glfw.glfw34:glfw-monitor-video-mode monitor)))
               (if mode
                   (format t "  ~A — ~Dx~D @ ~D Hz~%"
-                          (lwlgl.glfw:monitor-name monitor)
-                          (lwlgl.glfw:video-mode-width mode)
-                          (lwlgl.glfw:video-mode-height mode)
-                          (lwlgl.glfw:video-mode-refresh-rate mode))
-                  (format t "  ~A~%" (lwlgl.glfw:monitor-name monitor)))))))
+                          (lwlgl.glfw.glfw34:glfw-monitor-name monitor)
+                          (lwlgl.glfw.glfw34:glfw-video-mode-width mode)
+                          (lwlgl.glfw.glfw34:glfw-video-mode-height mode)
+                          (lwlgl.glfw.glfw34:glfw-video-mode-refresh-rate mode))
+                  (format t "  ~A~%"
+                          (lwlgl.glfw.glfw34:glfw-monitor-name monitor)))))))
     (error (condition) (format t "unavailable (~A)~%" condition)))
 
   (format t "~&Vulkan: ")

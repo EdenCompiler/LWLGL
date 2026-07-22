@@ -1,0 +1,50 @@
+(in-package #:lwlgl.openal)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (dolist (name '("LWLGL.OPENAL.AL10" "LWLGL.OPENAL.AL11"
+                  "LWLGL.OPENAL.ALC10" "LWLGL.OPENAL.ALC11"))
+    (unless (find-package name) (make-package name :use '(#:cl))))
+
+  (labels ((alias (name source target)
+             (let ((symbol (intern name target)))
+               (if (macro-function source)
+                   (setf (macro-function symbol) (macro-function source))
+                   (setf (fdefinition symbol) (fdefinition source)))
+               (export symbol target)))
+           (reexport (from to)
+             (do-external-symbols (symbol from)
+               (shadowing-import symbol to)
+               (export symbol to))))
+    (let ((al (find-package "LWLGL.OPENAL.AL11"))
+          (alc (find-package "LWLGL.OPENAL.ALC11")))
+      ;; Exact raw functions come directly from the CFFI declarations.
+      (do-symbols (symbol '#:lwlgl.openal)
+        (let ((name (symbol-name symbol)))
+          (cond
+            ((and (uiop:string-prefix-p "%ALC-" name) (fboundp symbol))
+             (alias (format nil "NALC-~A" (subseq name 5)) symbol alc))
+            ((and (uiop:string-prefix-p "%AL-" name) (fboundp symbol))
+             (alias (format nil "NAL-~A" (subseq name 4)) symbol al)))))
+      ;; Retain the friendly helpers while adding the standard API prefix.
+      (do-external-symbols (symbol '#:lwlgl.openal)
+        (let* ((name (symbol-name symbol))
+               (alc-p (or (search "DEVICE" name) (search "CONTEXT" name)
+                          (search "CAPTURE" name)))
+               (target (if alc-p alc al))
+               (prefix (if alc-p "ALC" "AL")))
+          (shadowing-import symbol target)
+          (export symbol target)
+          (cond
+            ((or (fboundp symbol) (macro-function symbol))
+             (alias (format nil "~A-~A" prefix name) symbol target))
+            ((constantp symbol)
+             (let ((constant (intern (format nil "+~A-~A+" prefix name) target)))
+               (proclaim `(special ,constant))
+               (setf (symbol-value constant) (symbol-value symbol))
+               (export constant target))))))
+      ;; The curated surface is available from both core-version packages;
+      ;; later registry specs can split 1.0 and 1.1 introductions exactly.
+      (reexport al (find-package "LWLGL.OPENAL.AL10"))
+      (reexport alc (find-package "LWLGL.OPENAL.ALC10"))
+      (reexport (find-package "LWLGL.OPENAL.AL10") al)
+      (reexport (find-package "LWLGL.OPENAL.ALC10") alc))))

@@ -1,7 +1,7 @@
 (in-package #:lwlgl.examples)
 
 (defun toolbox-demo ()
-  "Runs a device-free tour of LWLGL 0.5 math, timers, OBJ and profiling utilities."
+  "Runs a device-free tour of LWLGL 1.0 math, timers, OBJ and profiling utilities."
   (let* ((rotation (lwlgl.math:quat-from-axis-angle (lwlgl.math:vec3 0 0 1)
                                                      (lwlgl.math:degrees->radians 90)))
          (rotated (lwlgl.math:quat-rotate-vector rotation (lwlgl.math:vec3 1 0 0)))

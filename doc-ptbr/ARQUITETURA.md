@@ -6,9 +6,9 @@ LWLGL é uma biblioteca de bindings e runtime, não uma engine. Ela torna APIs n
 
 Camadas principais:
 
-1. **Core runtime** — plataforma, módulos nativos, memória CFFI e diagnóstico.
-2. **Bindings crus** — constantes, structs e ABI em C.
-3. **Loaders de capacidades** — resolução dinâmica onde necessário, especialmente OpenGL/Vulkan.
+1. **Core runtime** — plataforma, módulos nativos, memory stacks CFFI, providers, capabilities, handles, callbacks e diagnóstico.
+2. **Bindings gerados/raw** — constantes, structs, handles, callbacks e entry points `N*` orientados a ponteiros.
+3. **Bindings checked** — chamadas com prefixo da API sobre a ABI raw e dispatch por capabilities.
 4. **Helpers Lisp finos** — escopo de recursos, matemática, temporização, profiling, input, assets e parsing de formatos.
 5. **Integração opcional** — `lwlgl/gfx` compõe OpenGL, stb_image e OBJ sem impor um renderer.
 
@@ -19,6 +19,7 @@ lwlgl/core
 ├── lwlgl/util
 ├── lwlgl/glfw ──┬── lwlgl/input
 │                └── lwlgl/opengl ─── lwlgl/math
+├── lwlgl/egl ─────── lwlgl/opengles
 ├── lwlgl/openal
 ├── lwlgl/vulkan
 ├── lwlgl/opencl
@@ -30,7 +31,7 @@ lwlgl/math        (Lisp puro)
 lwlgl             (sistema agregador)
 ```
 
-Cada sistema pode ser carregado separadamente. `lwlgl/bindings` agrega o runtime e os bindings nativos; `lwlgl/extras` agrega helpers Lisp opcionais; e `lwlgl/all` carrega ambos junto do gerador. Durante o ciclo de compatibilidade 0.5, `lwlgl` continua equivalente a `lwlgl/all`.
+Cada sistema pode ser carregado separadamente. `lwlgl/bindings` agrega o runtime e os bindings nativos; `lwlgl/extras` agrega helpers Lisp opcionais; e `lwlgl/all` carrega ambos junto do gerador. `lwlgl` continua equivalente a `lwlgl/all`.
 
 ## OpenGL
 

@@ -56,28 +56,45 @@
               collect (copy-tree value))
         #'string< :key (lambda (entry) (getf entry :native-name))))
 
-(defmacro define-gl-function (lisp-name c-name return-type arguments &key optional)
-  "Defines a capability-dispatched OpenGL call and registers binding metadata."
-  (let ((function-pointer (gensym "FUNCTION-POINTER")))
+(defmacro define-gl-function (lisp-name c-name return-type arguments
+                              &key optional version profile extension
+                                   (dispatch :context) documentation)
+  "Defines LWJGL-style raw NGL-* and checked GL-* entry points with metadata."
+  (let* ((name (symbol-name lisp-name))
+         (raw-p (and (> (length name) 2) (string= name "NGL" :end1 3 :end2 3)))
+         (checked-name (if raw-p
+                           (intern (subseq name 1) *package*)
+                           lisp-name))
+         (raw-name (if raw-p lisp-name
+                       (intern (concatenate 'string "N" name) *package*)))
+         (parameters (mapcar #'first arguments))
+         (function-pointer (gensym "FUNCTION-POINTER")))
     `(progn
        (eval-when (:compile-toplevel :load-toplevel :execute)
+         (export ',raw-name '#:lwlgl.opengl)
          (pushnew ,c-name ,(if optional '*gl-optional-functions* '*gl-required-functions*)
                   :test #'string=)
          (setf (gethash ,c-name *gl-function-metadata*)
-               (list :lisp-name ',lisp-name :native-name ,c-name
+               (list :lisp-name ',checked-name :raw-name ',raw-name :native-name ,c-name
                      :return-type ',return-type :arguments ',arguments
-                     :optional ,(not (null optional)))))
-       (defun ,lisp-name ,(mapcar #'first arguments)
+                     :optional ,(not (null optional)) :version ',version
+                     :profile ',profile :extension ',extension
+                     :dispatch ',dispatch :documentation ,documentation)))
+       (defun ,raw-name ,parameters
          ,(format nil "Capability-dispatched binding for ~A." c-name)
          (let ((,function-pointer (gethash ,c-name (%capability-table))))
            (unless ,function-pointer
              ,(if optional
-                  `(return-from ,lisp-name nil)
+                  `(return-from ,raw-name nil)
                   `(setf ,function-pointer (require-gl-function ,c-name))))
            (cffi:foreign-funcall-pointer
             ,function-pointer ()
             ,@(loop for (name type) in arguments append (list type name))
-            ,return-type))))))
+            ,return-type)))
+       ,@(unless raw-p
+           `((defun ,checked-name ,parameters
+               ,(format nil "Checked entry point corresponding to ~A." c-name)
+               (,raw-name ,@parameters)))))))
 
 (defun create-gl-capabilities (&key (error-on-missing t))
   "Resolves registered commands for the context current on this thread."
@@ -116,6 +133,21 @@
                 (gl-capabilities-context-address ,value) ,current))
        (let ((*current-gl-capabilities* ,value))
          ,@body))))
+
+(defun create-capabilities (&key (error-on-missing t))
+  (create-gl-capabilities :error-on-missing error-on-missing))
+
+(defun get-capabilities ()
+  (or *current-gl-capabilities* (error "No OpenGL capabilities are active.")))
+
+(defun set-capabilities (capabilities)
+  (setf *current-gl-capabilities* capabilities
+        *gl-functions* (gl-capabilities-functions capabilities)
+        *opengl-loaded-p* (not (null capabilities)))
+  capabilities)
+
+(defmacro with-capabilities ((capabilities) &body body)
+  `(with-gl-capabilities (,capabilities) ,@body))
 
 (defun load-opengl (&key (error-on-missing t))
   "Creates and activates capabilities for the current context.

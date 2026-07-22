@@ -4,6 +4,8 @@
   pointer
   allocation-pointer
   (length 0 :type (integer 0 *))
+  (position 0 :type (integer 0 *))
+  (limit 0 :type (integer 0 *))
   element-type
   (element-size 0 :type (integer 0 *))
   (capacity-bytes 0 :type (integer 0 *))
@@ -19,6 +21,13 @@
 (defun %natural-alignment (element-size)
   ;; The largest power-of-two divisor is a safe default for scalar and struct sizes.
   (max 1 (logand element-size (- element-size))))
+
+(defun %native-zero (element-type)
+  (case element-type
+    (:float 0.0)
+    (:double 0.0d0)
+    (:pointer (null-pointer))
+    (otherwise 0)))
 
 (defun native-buffer-alive-p (buffer)
   "Returns true when BUFFER and every buffer it views still refer to live memory."
@@ -57,6 +66,7 @@
            (pointer (inc-pointer base offset))
            (buffer (%make-native-buffer
                     :pointer pointer :allocation-pointer base :length length
+                    :position 0 :limit length
                     :element-type element-type :element-size element-size
                     :capacity-bytes capacity :alignment requested-alignment
                     :owned-p t :read-only-p (not (null read-only)))))
@@ -71,6 +81,7 @@
   (let ((element-size (foreign-type-size element-type)))
     (%make-native-buffer
      :pointer pointer :allocation-pointer (and owned pointer) :length length
+     :position 0 :limit length
      :element-type element-type :element-size element-size
      :capacity-bytes (* length element-size) :alignment (max 1 element-size)
      :owned-p (not (null owned)) :read-only-p (not (null read-only)) :parent parent)))
@@ -123,6 +134,46 @@
     (%memory-error buffer "buffer is read-only"))
   (setf (mem-aref (native-buffer-pointer buffer) (native-buffer-element-type buffer) index)
         value))
+
+(defun native-buffer-remaining (buffer)
+  (%check-buffer-live buffer)
+  (- (native-buffer-limit buffer) (native-buffer-position buffer)))
+
+(defun buffer-get (buffer)
+  "Reads at BUFFER's position and advances it by one element."
+  (let ((position (native-buffer-position buffer)))
+    (when (>= position (native-buffer-limit buffer))
+      (%memory-error buffer "buffer underflow at position ~D" position))
+    (prog1 (buffer-ref buffer position)
+      (incf (native-buffer-position buffer)))))
+
+(defun buffer-put (buffer value)
+  "Writes at BUFFER's position, advances it, and returns BUFFER."
+  (let ((position (native-buffer-position buffer)))
+    (when (>= position (native-buffer-limit buffer))
+      (%memory-error buffer "buffer overflow at position ~D" position))
+    (buffer-set buffer position value)
+    (incf (native-buffer-position buffer)))
+  buffer)
+
+(defun clear-native-buffer (buffer)
+  "Prepares BUFFER for writing without modifying its memory."
+  (%check-buffer-live buffer)
+  (setf (native-buffer-position buffer) 0
+        (native-buffer-limit buffer) (native-buffer-length buffer))
+  buffer)
+
+(defun flip-native-buffer (buffer)
+  "Sets the limit to the current position and rewinds for reading."
+  (%check-buffer-live buffer)
+  (setf (native-buffer-limit buffer) (native-buffer-position buffer)
+        (native-buffer-position buffer) 0)
+  buffer)
+
+(defun rewind-native-buffer (buffer)
+  (%check-buffer-live buffer)
+  (setf (native-buffer-position buffer) 0)
+  buffer)
 
 (defsetf buffer-ref (buffer index) (value)
   `(buffer-set ,buffer ,index ,value))
@@ -215,3 +266,137 @@
 
 (defun copy-foreign-array-to-list (pointer type count)
   (loop for index below count collect (mem-aref pointer type index)))
+
+(defun make-pointer-buffer (length &rest options)
+  "Allocates an address-sized buffer."
+  (apply #'make-native-buffer :pointer length options))
+
+(defun make-byte-buffer (length &rest options)
+  (apply #'make-native-buffer :unsigned-char length options))
+(defun make-short-buffer (length &rest options)
+  (apply #'make-native-buffer :short length options))
+(defun make-int-buffer (length &rest options)
+  (apply #'make-native-buffer :int length options))
+(defun make-long-buffer (length &rest options)
+  (apply #'make-native-buffer :int64 length options))
+(defun make-float-buffer (length &rest options)
+  (apply #'make-native-buffer :float length options))
+(defun make-double-buffer (length &rest options)
+  (apply #'make-native-buffer :double length options))
+
+(defun mem-alloc (element-type length &rest options)
+  "LWJGL-style alias for MAKE-NATIVE-BUFFER."
+  (apply #'make-native-buffer element-type length options))
+
+(defun mem-calloc (element-type length &rest options)
+  "Allocates a zero-filled native buffer."
+  (apply #'make-native-buffer element-type length
+         :initial-element (%native-zero element-type) options))
+
+(defun mem-free (buffer) (free-native-buffer buffer))
+
+(defun mem-address (buffer &optional (position (native-buffer-position buffer)))
+  "Returns the native address at POSITION."
+  (%check-buffer-live buffer)
+  (unless (<= 0 position (native-buffer-limit buffer))
+    (%memory-error buffer "address position ~D is outside the buffer limit" position))
+  (pointer-address
+   (inc-pointer (native-buffer-pointer buffer)
+                (* position (native-buffer-element-size buffer)))))
+
+(defun mem-utf8 (string &key arena (null-terminated t))
+  (string-to-utf8-buffer string :arena arena :null-terminated null-terminated))
+
+(defun string-to-utf8-buffer (string &key arena null-terminated)
+  "Encodes STRING as UTF-8 in an owned or arena-backed byte buffer."
+  (cffi:with-foreign-string ((source payload) string :encoding :utf-8)
+    (let* ((length (if null-terminated payload (max 0 (1- payload))))
+           (buffer (if arena
+                       (arena-alloc arena :unsigned-char length)
+                       (make-native-buffer :unsigned-char length))))
+      (dotimes (index length buffer)
+        (setf (buffer-ref buffer index)
+              (cffi:mem-aref source :unsigned-char index))))))
+
+(defun utf8-buffer-to-string (buffer &key (start (native-buffer-position buffer)) count)
+  "Decodes UTF-8 from BUFFER without changing its cursor."
+  (%check-buffer-live buffer)
+  (let ((length (or count (- (native-buffer-limit buffer) start))))
+    (unless (<= 0 start (+ start length) (native-buffer-limit buffer))
+      (%memory-error buffer "invalid UTF-8 range"))
+    (cffi:foreign-string-to-lisp
+     (inc-pointer (native-buffer-pointer buffer) start)
+     :count length :encoding :utf-8)))
+
+;;; Dynamically scoped, thread-local-by-binding bump allocator.
+(defstruct (memory-stack (:constructor %make-memory-stack))
+  backing
+  (offset 0 :type (integer 0 *))
+  (frames '())
+  (active-p t :type boolean))
+
+(defvar *memory-stack* nil)
+
+(defun make-memory-stack (&key (size (* 64 1024)))
+  (%make-memory-stack :backing (make-native-buffer :unsigned-char size :alignment 16)))
+
+(defun free-memory-stack (stack)
+  (when (memory-stack-active-p stack)
+    (free-native-buffer (memory-stack-backing stack))
+    (setf (memory-stack-frames stack) nil
+          (memory-stack-offset stack) 0
+          (memory-stack-active-p stack) nil))
+  stack)
+
+(defun current-memory-stack ()
+  (or *memory-stack* (error "No active memory stack; use WITH-MEMORY-STACK.")))
+
+(defun stack-push (&optional (stack (current-memory-stack)))
+  (unless (memory-stack-active-p stack)
+    (error "Memory stack is no longer active."))
+  (push (memory-stack-offset stack) (memory-stack-frames stack))
+  stack)
+
+(defun stack-pop (&optional (stack (current-memory-stack)))
+  (unless (memory-stack-frames stack)
+    (error "Memory stack frame underflow."))
+  (setf (memory-stack-offset stack) (pop (memory-stack-frames stack)))
+  stack)
+
+(defun %align-up (value alignment)
+  (+ value (mod (- alignment (mod value alignment)) alignment)))
+
+(defun stack-malloc (element-type length &key alignment (stack (current-memory-stack)))
+  "Bump-allocates a borrowed typed buffer from STACK."
+  (let* ((element-size (foreign-type-size element-type))
+         (actual-alignment (or alignment (%natural-alignment element-size)))
+         (offset (%align-up (memory-stack-offset stack) actual-alignment))
+         (bytes (* element-size length))
+         (end (+ offset bytes))
+         (backing (memory-stack-backing stack)))
+    (unless (<= end (native-buffer-capacity-bytes backing))
+      (error "Memory stack overflow: requested ~D bytes with ~D remaining."
+             bytes (- (native-buffer-capacity-bytes backing) offset)))
+    (setf (memory-stack-offset stack) end)
+    (let ((buffer (wrap-native-buffer
+                   (inc-pointer (native-buffer-pointer backing) offset)
+                   element-type length :parent backing)))
+      (setf (native-buffer-alignment buffer) actual-alignment)
+      buffer)))
+
+(defun stack-calloc (element-type length &key alignment (stack (current-memory-stack)))
+  (fill-native-buffer
+   (stack-malloc element-type length :alignment alignment :stack stack)
+   (%native-zero element-type)))
+
+(defmacro with-memory-stack ((var &key (size '(* 64 1024))) &body body)
+  "Creates/reuses a dynamically scoped memory stack frame for BODY."
+  (let ((owned (gensym "OWNED")) (stack (gensym "STACK")))
+    `(let* ((,owned (null *memory-stack*))
+            (,stack (or *memory-stack* (make-memory-stack :size ,size)))
+            (*memory-stack* ,stack)
+            (,var ,stack))
+       (stack-push ,stack)
+       (unwind-protect (locally ,@body)
+         (stack-pop ,stack)
+         (when ,owned (free-memory-stack ,stack))))))

@@ -1,10 +1,15 @@
-# Guia da API LWLGL 0.5
+# Guia da API LWLGL 1.0
+
+Os entry points canônicos ficam em pacotes versionados como `LWLGL.OPENGL.GL33`, `LWLGL.GLFW.GLFW34` e `LWLGL.VULKAN.VK14`. Nomes checked usam o prefixo da API nativa; nomes raw acrescentam `N`. Constantes usam `+API-NOME+`.
 
 ## Core
 
 ```lisp
 (lwlgl.core:add-native-search-path #P"./native/")
 (lwlgl.core:print-runtime-report)
+
+(lwlgl.core:with-memory-stack (stack)
+  (lwlgl.core:stack-calloc :float 16 :stack stack))
 ```
 
 Buffers alinhados suportam slices emprestados e arenas de lifetime compartilhado:

@@ -7,5 +7,5 @@
   (asdf:load-system :lwlgl/all)
   (asdf:load-system :lwlgl/examples))
 
-(format t "~&LWLGL ~A carregado com os exemplos. Use (lwlgl.examples:toolbox-demo) para o demo sem dispositivo ou (lwlgl.core:print-runtime-report) para diagnóstico.~%"
+(format t "~&LWLGL ~A carregado com os exemplos. Experimente (lwlgl.examples:spinning-cube), (lwlgl.examples:native-memory-demo) ou scripts/run-examples.lisp.~%"
         lwlgl.core:*lwlgl-version*)

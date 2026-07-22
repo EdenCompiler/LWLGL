@@ -32,16 +32,86 @@
 (defconstant device-version #x102F)
 (defconstant device-extensions #x1030)
 
-(cffi:defcfun ("clGetPlatformIDs" %cl-get-platform-ids) :int
+(defconstant +cl-platform-profile+ platform-profile)
+(defconstant +cl-platform-version+ platform-version)
+(defconstant +cl-platform-name+ platform-name)
+(defconstant +cl-platform-vendor+ platform-vendor)
+(defconstant +cl-platform-extensions+ platform-extensions)
+(defconstant +cl-device-type-default+ device-type-default)
+(defconstant +cl-device-type-cpu+ device-type-cpu)
+(defconstant +cl-device-type-gpu+ device-type-gpu)
+(defconstant +cl-device-type-accelerator+ device-type-accelerator)
+(defconstant +cl-device-type-all+ device-type-all)
+
+(cffi:defcfun ("clGetPlatformIDs" ncl-get-platform-ids) :int
   (num-entries :unsigned-int) (platforms :pointer) (num-platforms :pointer))
-(cffi:defcfun ("clGetPlatformInfo" %cl-get-platform-info) :int
+(cffi:defcfun ("clGetPlatformInfo" ncl-get-platform-info) :int
   (platform :pointer) (param-name :unsigned-int) (param-value-size :size)
   (param-value :pointer) (param-value-size-ret :pointer))
-(cffi:defcfun ("clGetDeviceIDs" %cl-get-device-ids) :int
+(cffi:defcfun ("clGetDeviceIDs" ncl-get-device-ids) :int
   (platform :pointer) (device-type-mask :uint64) (num-entries :unsigned-int)
   (devices :pointer) (num-devices :pointer))
-(cffi:defcfun ("clGetDeviceInfo" %cl-get-device-info) :int
+(cffi:defcfun ("clGetDeviceInfo" ncl-get-device-info) :int
   (device :pointer) (param-name :unsigned-int) (param-value-size :size)
   (param-value :pointer) (param-value-size-ret :pointer))
 
-(defun load-opencl () (lwlgl.core:ensure-native-module :opencl) t)
+(defvar *provider* nil)
+(defvar *capabilities* nil)
+
+(defstruct (cl-capabilities (:include lwlgl.core:api-capabilities)
+                            (:constructor %make-cl-capabilities)))
+
+(defun create ()
+  (lwlgl.core:ensure-native-module :opencl)
+  (setf *provider*
+        (lwlgl.core:make-function-provider
+         :name :opencl
+         :resolver (lambda (name)
+                     (lwlgl.core:resolve-foreign-symbol name :module :opencl :errorp nil))))
+  t)
+
+(defun destroy ()
+  (setf *provider* nil *capabilities* nil)
+  (lwlgl.core:unload-native-module :opencl)
+  nil)
+
+(defun load-opencl () (create))
+(defun get-function-provider () (or *provider* (progn (create) *provider*)))
+
+(defun create-capabilities (&key (provider (get-function-provider)))
+  (let ((functions (make-hash-table :test #'equal)))
+    (dolist (name '("clGetPlatformIDs" "clGetPlatformInfo"
+                    "clGetDeviceIDs" "clGetDeviceInfo"))
+      (let ((pointer (lwlgl.core:get-function-address provider name)))
+        (when pointer (setf (gethash name functions) pointer))))
+    (setf *capabilities*
+          (%make-cl-capabilities :api :opencl :version '(3 0)
+                                 :functions functions))))
+
+(defun get-capabilities ()
+  (or *capabilities* (error "No OpenCL capabilities are active.")))
+(defun set-capabilities (capabilities) (setf *capabilities* capabilities))
+(defmacro with-capabilities ((capabilities) &body body)
+  `(let ((*capabilities* ,capabilities)) (locally ,@body)))
+(defun cl-function-available-p (name &optional (capabilities (get-capabilities)))
+  (not (null (lwlgl.core:capability-function-pointer capabilities name))))
+
+(defmacro %define-checked (checked raw arguments)
+  `(defun ,checked ,arguments
+     (unless *provider* (create))
+     (,raw ,@arguments)))
+
+(%define-checked cl-get-platform-ids ncl-get-platform-ids
+  (num-entries platforms num-platforms))
+(%define-checked cl-get-platform-info ncl-get-platform-info
+  (platform param-name param-value-size param-value param-value-size-ret))
+(%define-checked cl-get-device-ids ncl-get-device-ids
+  (platform device-type-mask num-entries devices num-devices))
+(%define-checked cl-get-device-info ncl-get-device-info
+  (device param-name param-value-size param-value param-value-size-ret))
+
+;; Internal compatibility names used by the discovery helpers.
+(setf (fdefinition '%cl-get-platform-ids) #'cl-get-platform-ids
+      (fdefinition '%cl-get-platform-info) #'cl-get-platform-info
+      (fdefinition '%cl-get-device-ids) #'cl-get-device-ids
+      (fdefinition '%cl-get-device-info) #'cl-get-device-info)

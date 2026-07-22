@@ -24,6 +24,14 @@ Examples live in the separate `lwlgl/examples` ASDF system:
 
 Alternatively, `(load #P"quickstart.lisp")` loads both the main library and the examples system.
 
+Examples can also be selected from the shell. The smoke flag bounds interactive examples to two frames:
+
+```bash
+sbcl --script scripts/run-examples.lisp toolbox native-memory capabilities
+sbcl --script scripts/run-examples.lisp --smoke hello-window triangle spinning-cube textured-quad instanced-triangles input audio positional-audio
+sbcl --script scripts/run-examples.lisp offscreen-framebuffer vulkan-readiness
+```
+
 ## Linux
 
 Install the native libraries you plan to use with your distribution package manager. Typical development/runtime packages provide:

@@ -1,6 +1,8 @@
-# LWLGL 0.5 API Guide
+# LWLGL 1.0 API Guide
 
 This guide highlights the convenience layer. Raw/native-style functions remain available in the module packages.
+
+Canonical low-level entry points live in version packages such as `LWLGL.OPENGL.GL33`, `LWLGL.GLFW.GLFW34`, and `LWLGL.VULKAN.VK14`. Checked names use the native API prefix; raw names add a leading `N`. Constants use `+API-NAME+`.
 
 ## Core and diagnostics
 
@@ -10,6 +12,10 @@ This guide highlights the convenience layer. Raw/native-style functions remain a
 
 (lwlgl.core:with-native-buffer (buffer :float 4 :initial-element 0.0)
   (setf (lwlgl.core:buffer-ref buffer 0) 1.0))
+
+(lwlgl.core:with-memory-stack (stack)
+  (let ((temporary (lwlgl.core:stack-calloc :float 16 :stack stack)))
+    (lwlgl.core:mem-address temporary)))
 ```
 
 Aligned buffers expose capacity and can create borrowed slices:

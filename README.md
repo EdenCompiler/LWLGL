@@ -8,13 +8,15 @@
 
 LWLGL is a modular Common Lisp library for low-level game, graphics, audio, compute, and native-platform programming in the spirit of LWJGL. It does not try to be a game engine; instead, it provides composable bindings and thin utilities around GLFW, OpenGL, OpenAL, Vulkan loader discovery, OpenCL discovery, and stb_image, plus Lisp-native math, input, assets, profiling, OBJ loading, and graphics integration helpers.
 
-Current version: 0.5.0.
+Current version: 1.0.0.
 
 ## Highlights
 
 - modular ASDF systems: load only the subsystems an application needs;
 - cross-platform native-library discovery for Windows, Linux, and macOS;
 - CFFI-based native memory buffers, temporary foreign arrays, symbol resolution, and runtime diagnostics;
+- LWJGL-style checked/native call pairs, versioned API packages, capabilities, function providers, and memory stacks;
+- EGL 1.5 and capability-dispatched OpenGL ES 2.0–3.2 bootstrap bindings;
 - GLFW window/context lifecycle, monitors, video modes, callbacks, clipboard, joysticks, gamepads, content scale, opacity, attention requests, and Vulkan interop;
 - composable GLFW callback handlers, allowing library-level input tracking and application callbacks to coexist;
 - stateful keyboard/mouse input with pressed/down/released transitions, text input, deltas, scrolling, and focus state;
@@ -31,7 +33,7 @@ Current version: 0.5.0.
 - asset search roots, extension-based loaders, bulk preloading, cache inspection/invalidation, changed-file reload detection, and reload listeners;
 - dependency-free Wavefront OBJ parsing with fan triangulation, negative indices, deduplicated indexed vertices, bounds, normals, and UVs;
 - graphics integration helpers for recursive GLSL `#include`, program creation from files, stb-backed texture upload, and OBJ-to-VAO/VBO/EBO upload;
-- runnable examples for windows, triangles, instancing, input/timing, audio, native-system discovery, and the device-free utility toolbox;
+- runnable examples for windows, indexed 3D, procedural textures, offscreen framebuffer readback, instancing, Vulkan readiness, positional audio, EGL/OpenGL discovery, capabilities, native memory, and portable utilities;
 - English and Brazilian Portuguese documentation.
 
 ## Installation
@@ -47,6 +49,8 @@ Or load only selected subsystems:
     (asdf:load-system :lwlgl/math)
     (asdf:load-system :lwlgl/glfw)
     (asdf:load-system :lwlgl/opengl)
+    (asdf:load-system :lwlgl/opengles)
+    (asdf:load-system :lwlgl/egl)
     (asdf:load-system :lwlgl/openal)
     (asdf:load-system :lwlgl/assets)
     (asdf:load-system :lwlgl/obj)
@@ -58,7 +62,7 @@ The aggregate systems make the binding/helper boundary explicit:
     (asdf:load-system :lwlgl/extras)   ; Lisp-native utilities/integration helpers
     (asdf:load-system :lwlgl/all)      ; everything, including bindgen
 
-For compatibility in the 0.5 series, `lwlgl` remains equivalent to `lwlgl/all`.
+`lwlgl` remains equivalent to `lwlgl/all`; applications can load a smaller subsystem directly.
 
 The included convenience loader also works when invoked from the project directory:
 
@@ -70,17 +74,57 @@ Load the examples:
 
     (lwlgl.examples:hello-window)
     (lwlgl.examples:triangle)
+    (lwlgl.examples:spinning-cube)
+    (lwlgl.examples:textured-quad)
+    (lwlgl.examples:offscreen-framebuffer)
     (lwlgl.examples:instanced-triangles)
     (lwlgl.examples:input-demo)
     (lwlgl.examples:audio-tone)
+    (lwlgl.examples:positional-audio)
     (lwlgl.examples:system-info)
+    (lwlgl.examples:vulkan-readiness)
     (lwlgl.examples:toolbox-demo)
+    (lwlgl.examples:native-memory-demo)
+    (lwlgl.examples:capabilities-demo)
+    (lwlgl.examples:opengl-info)
+    (lwlgl.examples:egl-info)
+
+Run examples directly from the shell. `--smoke` limits interactive examples to two frames:
+
+    sbcl --script scripts/run-examples.lisp toolbox native-memory capabilities
+    sbcl --script scripts/run-examples.lisp --smoke hello-window triangle spinning-cube textured-quad instanced-triangles input audio positional-audio
+    sbcl --script scripts/run-examples.lisp offscreen-framebuffer vulkan-readiness
 
 Run the device-free test suite with SBCL:
 
     sbcl --script run-tests.lisp
 
-The tests cover native-memory helpers, module registration, platform/version reporting, vectors, matrices and inversion, quaternions, rays/AABBs/spheres/frustums, deterministic timers, composite input bindings and 2D axes, fixed timesteps, profiling, OBJ parsing, and asset-loader registration without requiring a window, GPU, or audio device.
+The tests cover the versioned/raw API surface, providers and capabilities, native-memory stacks and buffers, module registration, platform/version reporting, math, timers, input, profiling, OBJ parsing, and assets without requiring a window, GPU, or audio device.
+
+## LWJGL-style binding API
+
+Version 1.0 gives native bindings one predictable shape. Checked functions retain the native API prefix, raw pointer-oriented functions add `N`, and constants use `+API-NAME+`:
+
+    (lwlgl.opengl.gl33:gl-clear lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+    (lwlgl.opengl.gl33:ngl-clear lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+    (lwlgl.glfw.glfw34:glfw-poll-events)
+    (lwlgl.opencl.cl30:cl-get-platform-ids 0 (cffi:null-pointer) count)
+
+Use capabilities explicitly when dispatch depends on a context or device:
+
+    (let ((capabilities (lwlgl.opengl:create-capabilities)))
+      (lwlgl.opengl:with-capabilities (capabilities)
+        (lwlgl.opengl.gl33:gl-clear
+         lwlgl.opengl.gl33:+gl-color-buffer-bit+)))
+
+Temporary native arguments can use the scoped stack; retained native memory should use `mem-alloc`/`mem-free` or `with-native-buffer`:
+
+    (lwlgl.core:with-memory-stack (stack)
+      (let ((values (lwlgl.core:stack-calloc :float 16 :stack stack))
+            (name (lwlgl.core:mem-utf8 "u_model" :arena nil)))
+        (unwind-protect
+             (values values (lwlgl.core:mem-address name))
+          (lwlgl.core:mem-free name))))
 
 ### stb_image shim
 
@@ -95,23 +139,24 @@ PowerShell equivalents are available under `scripts/` for Windows.
 
 ### Window and OpenGL context
 
-    (lwlgl.glfw:with-glfw ()
-      (lwlgl.glfw:default-window-hints)
-      (lwlgl.glfw:window-hint lwlgl.glfw:context-version-major 3)
-      (lwlgl.glfw:window-hint lwlgl.glfw:context-version-minor 3)
-      (lwlgl.glfw:window-hint lwlgl.glfw:opengl-profile
-                               lwlgl.glfw:opengl-core-profile)
+    (lwlgl.glfw.glfw34:glfw-with-glfw ()
+      (lwlgl.glfw.glfw34:glfw-default-window-hints)
+      (lwlgl.glfw.glfw34:glfw-window-hint
+       lwlgl.glfw.glfw34:+glfw-context-version-major+ 3)
+      (lwlgl.glfw.glfw34:glfw-window-hint
+       lwlgl.glfw.glfw34:+glfw-context-version-minor+ 3)
 
-      (lwlgl.glfw:with-window (window 1280 720 "LWLGL")
-        (lwlgl.glfw:make-context-current window)
-        (lwlgl.glfw:swap-interval 1)
+      (lwlgl.glfw.glfw34:glfw-with-window (window 1280 720 "LWLGL")
+        (lwlgl.glfw.glfw34:glfw-make-context-current window)
+        (lwlgl.glfw.glfw34:glfw-swap-interval 1)
         (lwlgl.opengl:load-opengl)
 
-        (loop until (lwlgl.glfw:window-should-close-p window) do
-          (lwlgl.opengl:gl-clear-color 0.08 0.09 0.12 1.0)
-          (lwlgl.opengl:gl-clear lwlgl.opengl:color-buffer-bit)
-          (lwlgl.glfw:swap-buffers window)
-          (lwlgl.glfw:poll-events))))
+        (loop until (lwlgl.glfw.glfw34:glfw-window-should-close-p window) do
+          (lwlgl.opengl.gl33:gl-clear-color 0.08 0.09 0.12 1.0)
+          (lwlgl.opengl.gl33:gl-clear
+           lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+          (lwlgl.glfw.glfw34:glfw-swap-buffers window)
+          (lwlgl.glfw.glfw34:glfw-poll-events))))
 
 OpenGL functions are resolved from the current context through GLFW. `load-opengl` tracks required and optional functions, while `gl-capabilities` and `gl-function-available-p` allow capability-driven code paths.
 
@@ -364,6 +409,8 @@ The intended boundary is deliberate: LWLGL supplies low-level capabilities and s
 - `lwlgl/assets` — asset roots, loaders, preload, cache inspection, change detection, and reload listeners;
 - `lwlgl/obj` — Wavefront OBJ loading;
 - `lwlgl/opengl` — runtime-loaded OpenGL calls and helpers;
+- `lwlgl/egl` — EGL loader and bootstrap calls;
+- `lwlgl/opengles` — capability-dispatched OpenGL ES calls;
 - `lwlgl/openal` — playback, WAV, streaming, discovery, capture;
 - `lwlgl/vulkan` — loader/bootstrap introspection;
 - `lwlgl/opencl` — compute-platform/device discovery;
@@ -379,9 +426,13 @@ The English documentation is in `doc-en/`:
 - `API.md` — compact subsystem/API reference;
 - `ARCHITECTURE.md` — module boundaries and extension model;
 - `BUILDING.md` — ASDF/native-library/stb build notes;
+- `LWJGL-STYLE.md` — version packages and checked/raw naming conventions;
+- `MEMORY-AND-CAPABILITIES.md` — native lifetimes, providers, capabilities, and callbacks;
+- `EXAMPLES.md` — example catalog, runner usage, and spinning-cube walkthrough;
+- `PRACTICAL-GRAPHICS.md` — textures, offscreen rendering, indexed 3D, and Vulkan readiness;
 - `MIGRATION.md` — migration from the original CLWJGL naming and earlier LWLGL releases.
 
-The Brazilian Portuguese documentation is in `doc-ptbr/`.
+The Brazilian Portuguese documentation is in `doc-ptbr/`, including `ESTILO-LWJGL.md`, `MEMORIA-E-CAPABILITIES.md`, `EXEMPLOS.md`, and `GRAFICOS-PRATICOS.md`.
 
 The examples under `examples/` are also intended as executable documentation.
 
@@ -403,7 +454,7 @@ Inspect startup state from Lisp with `(lwlgl.glfw:glfw-diagnostics)`.
 
 LWLGL 0.3.2 protects `lwlgl.glfw:with-glfw` from SBCL floating-point traps that can be triggered inside native window-system or graphics-driver code. If you integrate another native multimedia API directly, wrap that native scope with `lwlgl.core:with-native-floating-point-environment`.
 
-Version 0.5.0 is still an early low-level library. Vulkan is a loader/bootstrap layer rather than generated full Vulkan bindings; OpenCL focuses on discovery rather than complete compute-command coverage; the OBJ loader intentionally targets the common geometry subset and does not yet implement MTL/material parsing, smoothing-group-generated normals, or every vendor extension; `lwlgl/gfx` is a convenience integration layer rather than a renderer; stb_image requires the bundled shim to be built; and native APIs still depend on platform libraries supplied by the host system or application.
+Version 1.0.0 establishes the binding architecture, but registry coverage is still curated. Vulkan remains a loader/bootstrap layer, OpenCL focuses on discovery, and EGL/OpenGL ES expose bootstrap surfaces rather than every extension. The OBJ loader targets the common geometry subset; `lwlgl/gfx` is a convenience layer rather than a renderer; stb_image requires the bundled shim; and native APIs depend on platform libraries supplied by the host system or application.
 
 Important future directions include generated Vulkan/OpenGL/OpenAL/OpenCL bindings, richer OpenGL debug output and indirect/multi-draw APIs, cursor/image/window-icon helpers, audio streaming abstractions, MTL and glTF import paths, font/text bindings, controller mapping management, native packaging, CI across multiple Lisp implementations, and broader executable tests on real graphics/audio devices.
 
@@ -417,13 +468,15 @@ MIT. See `LICENSE`.
 
 LWLGL é uma biblioteca modular em Common Lisp para programação de baixo nível voltada a jogos, gráficos, áudio, computação e integração nativa, no espírito do LWJGL. Ela não tenta ser um motor de jogos; em vez disso, oferece bindings componíveis e utilitários finos para GLFW, OpenGL, OpenAL, descoberta do carregador Vulkan, descoberta OpenCL e stb_image, além de matemática, input, assets, profiling, carregamento OBJ e integração gráfica escritos em Lisp.
 
-Versão atual: 0.5.0.
+Versão atual: 1.0.0.
 
 ## Destaques
 
 - sistemas ASDF modulares: carregue apenas os subsistemas necessários;
 - descoberta multiplataforma de bibliotecas nativas para Windows, Linux e macOS;
 - buffers de memória nativa via CFFI, arrays estrangeiros temporários, resolução de símbolos e diagnóstico de runtime;
+- pares de chamadas checked/native no estilo LWJGL, pacotes por versão, capabilities, function providers e memory stacks;
+- bindings de bootstrap para EGL 1.5 e OpenGL ES 2.0–3.2 com dispatch por capabilities;
 - GLFW para janelas/contextos, monitores, modos de vídeo, callbacks, clipboard, joysticks, gamepads, escala de conteúdo, opacidade, pedido de atenção e interoperabilidade Vulkan;
 - handlers GLFW componíveis, permitindo que o rastreamento de input da biblioteca e callbacks da aplicação coexistam;
 - input stateful de teclado/mouse com transições pressionado/segurado/solto, texto Unicode, deltas, scroll e foco;
@@ -440,7 +493,7 @@ Versão atual: 0.5.0.
 - raízes de assets, loaders por extensão, preload em lote, inspeção/invalidação de cache, detecção/reload de arquivos alterados e listeners de reload;
 - parser Wavefront OBJ sem dependências extras, com triangulação em leque, índices negativos, vértices indexados deduplicados, bounds, normals e UVs;
 - integração gráfica para `#include` GLSL recursivo, programas a partir de arquivos, upload de texturas via stb e upload OBJ para VAO/VBO/EBO;
-- exemplos executáveis de janela, triângulos, instancing, input/timing, áudio, descoberta do sistema nativo e utilitários sem dispositivo;
+- exemplos executáveis de janela, 3D indexado, texturas procedurais, framebuffer offscreen, instancing, preparação Vulkan, áudio posicional, descoberta nativa e utilitários portáveis;
 - documentação em inglês e português do Brasil.
 
 ## Instalação
@@ -456,6 +509,8 @@ Ou carregue apenas subsistemas específicos:
     (asdf:load-system :lwlgl/math)
     (asdf:load-system :lwlgl/glfw)
     (asdf:load-system :lwlgl/opengl)
+    (asdf:load-system :lwlgl/opengles)
+    (asdf:load-system :lwlgl/egl)
     (asdf:load-system :lwlgl/openal)
     (asdf:load-system :lwlgl/assets)
     (asdf:load-system :lwlgl/obj)
@@ -471,17 +526,49 @@ Carregue os exemplos:
 
     (lwlgl.examples:hello-window)
     (lwlgl.examples:triangle)
+    (lwlgl.examples:spinning-cube)
+    (lwlgl.examples:textured-quad)
+    (lwlgl.examples:offscreen-framebuffer)
     (lwlgl.examples:instanced-triangles)
     (lwlgl.examples:input-demo)
     (lwlgl.examples:audio-tone)
+    (lwlgl.examples:positional-audio)
     (lwlgl.examples:system-info)
+    (lwlgl.examples:vulkan-readiness)
     (lwlgl.examples:toolbox-demo)
+    (lwlgl.examples:native-memory-demo)
+    (lwlgl.examples:capabilities-demo)
+    (lwlgl.examples:opengl-info)
+    (lwlgl.examples:egl-info)
+
+Execute exemplos diretamente no shell. `--smoke` limita exemplos interativos a dois frames:
+
+    sbcl --script scripts/run-examples.lisp toolbox native-memory capabilities
+    sbcl --script scripts/run-examples.lisp --smoke hello-window triangle spinning-cube textured-quad instanced-triangles input audio positional-audio
+    sbcl --script scripts/run-examples.lisp offscreen-framebuffer vulkan-readiness
 
 Execute a suíte de testes sem dispositivo com SBCL:
 
     sbcl --script run-tests.lisp
 
-Os testes cobrem memória nativa, registro de módulos, plataforma/versão, vetores, matrizes e inversão, quaternions, interseção ray/AABB, timestep fixo, profiling, parser OBJ e registro de loaders de assets sem exigir janela, GPU ou dispositivo de áudio.
+Os testes cobrem a API versionada/raw, providers e capabilities, memory stacks e buffers nativos, registro de módulos, plataforma/versão, matemática, timers, input, profiling, OBJ e assets sem exigir janela, GPU ou dispositivo de áudio.
+
+## API de bindings no estilo LWJGL
+
+Na versão 1.0, bindings nativos seguem um formato previsível. Funções checked mantêm o prefixo da API, funções raw orientadas a ponteiros acrescentam `N`, e constantes usam `+API-NOME+`:
+
+    (lwlgl.opengl.gl33:gl-clear lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+    (lwlgl.opengl.gl33:ngl-clear lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+    (lwlgl.glfw.glfw34:glfw-poll-events)
+
+Quando o dispatch depende de contexto ou dispositivo, use capabilities explicitamente:
+
+    (let ((caps (lwlgl.opengl:create-capabilities)))
+      (lwlgl.opengl:with-capabilities (caps)
+        (lwlgl.opengl.gl33:gl-clear
+         lwlgl.opengl.gl33:+gl-color-buffer-bit+)))
+
+Argumentos nativos temporários podem usar `with-memory-stack` e `stack-calloc`. Para memória retida, use `mem-alloc`/`mem-free` ou `with-native-buffer`.
 
 ### Shim stb_image
 
@@ -496,23 +583,24 @@ Há equivalentes PowerShell em `scripts/` para Windows.
 
 ### Janela e contexto OpenGL
 
-    (lwlgl.glfw:with-glfw ()
-      (lwlgl.glfw:default-window-hints)
-      (lwlgl.glfw:window-hint lwlgl.glfw:context-version-major 3)
-      (lwlgl.glfw:window-hint lwlgl.glfw:context-version-minor 3)
-      (lwlgl.glfw:window-hint lwlgl.glfw:opengl-profile
-                               lwlgl.glfw:opengl-core-profile)
+    (lwlgl.glfw.glfw34:glfw-with-glfw ()
+      (lwlgl.glfw.glfw34:glfw-default-window-hints)
+      (lwlgl.glfw.glfw34:glfw-window-hint
+       lwlgl.glfw.glfw34:+glfw-context-version-major+ 3)
+      (lwlgl.glfw.glfw34:glfw-window-hint
+       lwlgl.glfw.glfw34:+glfw-context-version-minor+ 3)
 
-      (lwlgl.glfw:with-window (window 1280 720 "LWLGL")
-        (lwlgl.glfw:make-context-current window)
-        (lwlgl.glfw:swap-interval 1)
+      (lwlgl.glfw.glfw34:glfw-with-window (window 1280 720 "LWLGL")
+        (lwlgl.glfw.glfw34:glfw-make-context-current window)
+        (lwlgl.glfw.glfw34:glfw-swap-interval 1)
         (lwlgl.opengl:load-opengl)
 
-        (loop until (lwlgl.glfw:window-should-close-p window) do
-          (lwlgl.opengl:gl-clear-color 0.08 0.09 0.12 1.0)
-          (lwlgl.opengl:gl-clear lwlgl.opengl:color-buffer-bit)
-          (lwlgl.glfw:swap-buffers window)
-          (lwlgl.glfw:poll-events))))
+        (loop until (lwlgl.glfw.glfw34:glfw-window-should-close-p window) do
+          (lwlgl.opengl.gl33:gl-clear-color 0.08 0.09 0.12 1.0)
+          (lwlgl.opengl.gl33:gl-clear
+           lwlgl.opengl.gl33:+gl-color-buffer-bit+)
+          (lwlgl.glfw.glfw34:glfw-swap-buffers window)
+          (lwlgl.glfw.glfw34:glfw-poll-events))))
 
 As funções OpenGL são resolvidas a partir do contexto atual pelo GLFW. `load-opengl` diferencia funções obrigatórias e opcionais; `gl-capabilities` e `gl-function-available-p` permitem caminhos condicionais por capacidade.
 
@@ -750,6 +838,8 @@ A fronteira é proposital: LWLGL fornece capacidades de baixo nível e pequenos 
 - `lwlgl/assets` — raízes, loaders, preload, inspeção de cache, detecção de alterações e listeners de reload;
 - `lwlgl/obj` — carregamento Wavefront OBJ;
 - `lwlgl/opengl` — OpenGL carregado em runtime e helpers;
+- `lwlgl/egl` — loader EGL e chamadas de bootstrap;
+- `lwlgl/opengles` — chamadas OpenGL ES com dispatch por capabilities;
 - `lwlgl/openal` — reprodução, WAV, streaming, descoberta e captura;
 - `lwlgl/vulkan` — introspecção do loader/bootstrap;
 - `lwlgl/opencl` — descoberta de plataforma/dispositivos de computação;
@@ -760,14 +850,18 @@ A fronteira é proposital: LWLGL fornece capacidades de baixo nível e pequenos 
 
 ## Documentação
 
-A documentação em português do Brasil está em `doc-ptbr/`:
+A documentação em português inclui:
 
-- `API.md` — referência compacta de subsistemas/API;
-- `ARQUITETURA.md` — fronteiras dos módulos e modelo de extensão;
-- `COMPILACAO.md` — ASDF, bibliotecas nativas e build do stb;
-- `MIGRACAO.md` — migração do nome CLWJGL original e de versões anteriores do LWLGL.
+- `API.md` — referência compacta;
+- `ARQUITETURA.md` — módulos e fronteiras;
+- `COMPILACAO.md` — dependências e build;
+- `ESTILO-LWJGL.md` — pacotes versionados e nomes checked/raw;
+- `MEMORIA-E-CAPABILITIES.md` — lifetimes, providers, capabilities e callbacks;
+- `EXEMPLOS.md` — catálogo, runner e explicação do cubo giratório;
+- `GRAFICOS-PRATICOS.md` — texturas, offscreen, 3D indexado e preparação Vulkan;
+- `MIGRACAO.md` — migração entre versões.
 
-A documentação em inglês está em `doc-en/`. Os arquivos em `examples/` também funcionam como documentação executável.
+Os arquivos em `examples/` também funcionam como documentação executável.
 
 ## Segurança de inicialização no Linux / Wayland
 
@@ -787,7 +881,7 @@ Inspecione o estado com `(lwlgl.glfw:glfw-diagnostics)`.
 
 O LWLGL 0.3.2 protege `lwlgl.glfw:with-glfw` contra traps de ponto flutuante do SBCL que podem ser disparados dentro do sistema de janelas ou do driver gráfico. Ao integrar diretamente outra API multimídia nativa, envolva esse escopo com `lwlgl.core:with-native-floating-point-environment`.
 
-A versão 0.5.0 ainda é uma biblioteca de baixo nível em estágio inicial. Vulkan fornece bootstrap/introspecção do loader em vez de bindings Vulkan completos gerados; OpenCL está concentrado em descoberta, não em toda a API de comandos; o parser OBJ implementa o subconjunto geométrico comum e ainda não cobre MTL/materiais, geração de normals por smoothing groups ou todas as extensões de fornecedores; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige a compilação do shim incluído; e APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
+A versão 1.0.0 estabelece a arquitetura dos bindings, mas a cobertura dos registries ainda é curada. Vulkan continua como camada de loader/bootstrap, OpenCL se concentra em descoberta, e EGL/OpenGL ES expõem superfícies de bootstrap em vez de todas as extensões. O parser OBJ cobre o subconjunto geométrico comum; `lwlgl/gfx` é uma camada de conveniência, não um renderer; stb_image exige o shim incluído; e as APIs nativas dependem das bibliotecas fornecidas pelo sistema ou pela aplicação.
 
 Direções futuras incluem bindings gerados para Vulkan/OpenGL/OpenAL/OpenCL, debug output e indirect/multi-draw no OpenGL, cursores/ícones de janela, abstrações de streaming de áudio, MTL e glTF, fontes/texto, gerenciamento de mappings de controles, empacotamento nativo, CI em várias implementações Lisp e testes executáveis em dispositivos gráficos/áudio reais.
 

@@ -6,9 +6,9 @@ LWLGL is a binding-and-runtime library, not an engine. It makes native multimedi
 
 The codebase is split into four conceptual layers:
 
-1. **Core runtime** — platform detection, native module registry, CFFI memory and diagnostics.
-2. **Raw bindings** — constants, structs and C ABI declarations.
-3. **Capability loaders** — runtime symbol lookup where required (especially OpenGL/Vulkan).
+1. **Core runtime** — platform detection, native modules, CFFI memory stacks, function providers, capabilities, handles, callbacks and diagnostics.
+2. **Generated/raw bindings** — versioned constants, structs, handles, callbacks and pointer-oriented `N*` entry points.
+3. **Checked bindings** — API-prefixed calls over the raw ABI and capability dispatch.
 4. **Thin Lisp utilities** — scoped lifetime macros, resource helpers, math, timing, profiling, input, assets and format parsing.
 5. **Optional integration helpers** — `lwlgl/gfx` composes OpenGL, stb_image and OBJ without defining renderer policy.
 
@@ -19,6 +19,7 @@ lwlgl/core
 ├── lwlgl/util
 ├── lwlgl/glfw ──┬── lwlgl/input
 │                └── lwlgl/opengl ─── lwlgl/math
+├── lwlgl/egl ─────── lwlgl/opengles
 ├── lwlgl/openal
 ├── lwlgl/vulkan
 ├── lwlgl/opencl
@@ -30,7 +31,7 @@ lwlgl/math        (pure Lisp)
 lwlgl             (umbrella system)
 ```
 
-Applications may load only the systems they need. `lwlgl/bindings` aggregates the native-facing layer, `lwlgl/extras` aggregates optional Lisp-native helpers, and `lwlgl/all` loads both plus the generator. The umbrella `lwlgl` remains an alias of `lwlgl/all` during the 0.5 compatibility cycle.
+Applications may load only the systems they need. `lwlgl/bindings` aggregates the native-facing layer, `lwlgl/extras` aggregates optional Lisp-native helpers, and `lwlgl/all` loads both plus the generator. The umbrella `lwlgl` remains an alias of `lwlgl/all`.
 
 ## Native module registry
 

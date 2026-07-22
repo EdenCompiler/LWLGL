@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0
+
+- Introduced LWJGL-style checked/native API pairs: checked calls use the API prefix (`GL-*`, `GLFW-*`, `AL-*`, `CL-*`, `VK-*`, `EGL-*`) and exact native calls add a leading `N`.
+- Added versioned binding packages for OpenGL 1.1–4.6 and core profiles, GLFW 3.4, OpenAL/ALC 1.0–1.1, OpenCL 1.0–3.0, Vulkan 1.0–1.4, EGL 1.5, and OpenGL ES 2.0–3.2.
+- Added EGL and capability-dispatched OpenGL ES subsystems with raw and checked bootstrap commands.
+- Added shared function-provider, capability, dispatchable-handle, and explicitly owned callback-resource primitives.
+- Expanded native memory with cursor/limit semantics, typed and pointer buffers, UTF-8 conversion, LWJGL-style `MEM-*` helpers, and a nested bump-allocated memory stack.
+- Extended bindgen declarations with types, structs, handles, callbacks, features, argument direction/count/nullability, raw names, versions, profiles, extensions, and dispatch metadata.
+- Added OpenAL and OpenCL capability providers plus Vulkan instance/device capability objects and raw bootstrap entry points.
+- Assigned the existing curated OpenGL commands to version packages by core introduction version and added prefixed constant aliases.
+- Expanded the device-free test suite to cover generated raw calls, versioned packages, providers, capabilities, cursor buffers, UTF-8, and stack memory.
+- Migrated every native example to the canonical versioned 1.0 API and added bounded frame counts for automated graphics smoke tests.
+- Added native-memory, capability-table, hidden OpenGL information, and EGL information examples plus a command-line example runner.
+- Fixed typed `MEM-CALLOC`/`STACK-CALLOC` zero initialization for floating-point and pointer buffers, discovered by the new memory example.
+- Added an indexed, depth-tested spinning cube example with animated MVP matrices and bounded smoke-test support.
+- Added practical procedural-texture, offscreen framebuffer/readback, Vulkan window-readiness, and positional OpenAL examples.
+
 ## 0.5.0
 
 - Added deterministic declarative binding-generator infrastructure with validation, source fingerprints, and OpenGL binding metadata introspection.

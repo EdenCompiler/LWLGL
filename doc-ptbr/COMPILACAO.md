@@ -18,6 +18,14 @@ Os exemplos ficam no sistema ASDF separado `lwlgl/examples`:
 (lwlgl.examples:toolbox-demo)
 ```
 
+Os exemplos também podem ser selecionados no shell. A opção smoke limita os exemplos interativos a dois frames:
+
+```bash
+sbcl --script scripts/run-examples.lisp toolbox native-memory capabilities
+sbcl --script scripts/run-examples.lisp --smoke hello-window triangle spinning-cube textured-quad instanced-triangles input audio positional-audio
+sbcl --script scripts/run-examples.lisp offscreen-framebuffer vulkan-readiness
+```
+
 Como alternativa, `(load #P"quickstart.lisp")` carrega a biblioteca principal e também o sistema de exemplos.
 
 ## Bibliotecas nativas

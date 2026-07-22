@@ -57,7 +57,49 @@
 (cffi:defcfun ("alListenerfv" %al-listener-fv) :void (param :int) (values :pointer))
 (cffi:defcfun ("alGetError" %al-get-error) :int)
 
-(defun %ensure-openal () (lwlgl.core:ensure-native-module :openal))
+(defvar *provider* nil)
+(defvar *capabilities* nil)
+
+(defstruct (al-capabilities (:include lwlgl.core:api-capabilities)
+                            (:constructor %make-al-capabilities)))
+
+(defun create ()
+  (lwlgl.core:ensure-native-module :openal)
+  (setf *provider*
+        (lwlgl.core:make-function-provider
+         :name :openal
+         :resolver (lambda (name)
+                     (lwlgl.core:resolve-foreign-symbol name :module :openal :errorp nil))))
+  t)
+
+(defun destroy ()
+  (setf *provider* nil *capabilities* nil)
+  (lwlgl.core:unload-native-module :openal)
+  nil)
+
+(defun get-function-provider () (or *provider* (progn (create) *provider*)))
+
+(defun create-capabilities (&key provider)
+  (let ((functions (make-hash-table :test #'equal))
+        (actual-provider (or provider (get-function-provider))))
+    (dolist (name '("alGetError" "alGenBuffers" "alDeleteBuffers"
+                    "alGenSources" "alDeleteSources" "alSourcePlay"
+                    "alcOpenDevice" "alcCreateContext"))
+      (let ((pointer (lwlgl.core:get-function-address actual-provider name)))
+        (when pointer (setf (gethash name functions) pointer))))
+    (setf *capabilities*
+          (%make-al-capabilities :api :openal :version '(1 1)
+                                 :functions functions))))
+
+(defun get-capabilities ()
+  (or *capabilities* (error "No OpenAL capabilities are active.")))
+(defun set-capabilities (capabilities) (setf *capabilities* capabilities))
+(defmacro with-capabilities ((capabilities) &body body)
+  `(let ((*capabilities* ,capabilities)) (locally ,@body)))
+(defun al-function-available-p (name &optional (capabilities (get-capabilities)))
+  (not (null (lwlgl.core:capability-function-pointer capabilities name))))
+
+(defun %ensure-openal () (unless *provider* (create)) t)
 
 (defun open-device (&optional name)
   (%ensure-openal)

@@ -45,6 +45,40 @@
     (lwlgl.core:free-native-arena arena)
     (check (not (lwlgl.core:native-arena-active-p arena)))))
 
+(defun test-lwjgl-style-memory ()
+  (lwlgl.core:with-native-buffer (buffer :int 4 :initial-element 0)
+    (lwlgl.core:buffer-put buffer 11)
+    (lwlgl.core:buffer-put buffer 22)
+    (check (= 2 (lwlgl.core:native-buffer-position buffer)))
+    (lwlgl.core:flip-native-buffer buffer)
+    (check (= 2 (lwlgl.core:native-buffer-remaining buffer)))
+    (check (= 11 (lwlgl.core:buffer-get buffer)))
+    (check (= 22 (lwlgl.core:buffer-get buffer)))
+    (check (handler-case (progn (lwlgl.core:buffer-get buffer) nil)
+             (lwlgl.core:native-memory-error () t))))
+  (lwlgl.core:with-memory-stack (stack :size 128)
+    (let ((outer (lwlgl.core:stack-calloc :int 4 :stack stack)))
+      (setf (lwlgl.core:buffer-ref outer 0) 7)
+      (lwlgl.core:with-memory-stack (nested)
+        (declare (ignore nested))
+        (let ((inner (lwlgl.core:stack-malloc :float 4)))
+          (check (= 4 (lwlgl.core:native-buffer-length inner)))))
+      (check (= 7 (lwlgl.core:buffer-ref outer 0)))))
+  (lwlgl.core:with-memory-stack (stack :size 64)
+    (let ((floats (lwlgl.core:stack-calloc :float 2 :stack stack)))
+      (check (= 0.0 (lwlgl.core:buffer-ref floats 0)))))
+  (let ((utf8 (lwlgl.core:string-to-utf8-buffer "LWLGL λ")))
+    (unwind-protect
+         (check (string= "LWLGL λ" (lwlgl.core:utf8-buffer-to-string utf8)))
+      (lwlgl.core:free-native-buffer utf8)))
+  (let ((buffer (lwlgl.core:mem-calloc :int 2)))
+    (unwind-protect
+         (progn
+           (check (zerop (lwlgl.core:buffer-ref buffer 0)))
+           (check (= (cffi:pointer-address (lwlgl.core:native-buffer-pointer buffer))
+                     (lwlgl.core:mem-address buffer))))
+      (lwlgl.core:mem-free buffer))))
+
 (defun test-runtime-configuration ()
   (let ((configuration (lwlgl.core:configure-runtime :checks-enabled-p t
                                                        :debug-memory-p t
@@ -53,6 +87,34 @@
     (check (lwlgl.core:runtime-configuration-debug-memory-p configuration))
     (check (not (lwlgl.core:runtime-configuration-debug-loader-p configuration))))
   (lwlgl.core:configure-runtime :debug-memory-p nil))
+
+(defun test-dispatch-runtime ()
+  (let* ((address (cffi:make-pointer 1234))
+         (provider (lwlgl.core:make-function-provider
+                    :name :test
+                    :resolver (lambda (name) (and (string= name "present") address))))
+         (functions (make-hash-table :test #'equal))
+         (features (make-hash-table :test #'equal)))
+    (setf (gethash "present" functions) address
+          (gethash :test-10 features) t)
+    (let ((caps (lwlgl.core:make-api-capabilities
+                 :api :test :version '(1 0) :functions functions :features features)))
+      (check (= 1234 (cffi:pointer-address
+                      (lwlgl.core:get-function-address provider "present" :required t))))
+      (check (null (lwlgl.core:get-function-address provider "missing")))
+      (check (lwlgl.core:capability-supported-p caps :test-10))
+      (check (= 1234 (cffi:pointer-address
+                      (lwlgl.core:require-capability-function caps "present"))))
+      (let ((handle (lwlgl.core:make-dispatchable-handle
+                     :pointer address :capabilities caps)))
+        (check (eq caps (lwlgl.core:dispatchable-handle-capabilities handle)))))
+    (let ((released nil))
+      (lwlgl.core:with-callback
+          (callback (lwlgl.core:make-callback-resource
+                     address #'identity :releaser (lambda (pointer)
+                                                    (setf released (cffi:pointer-address pointer)))))
+        (check (lwlgl.core:callback-resource-active-p callback)))
+      (check (= 1234 released)))))
 
 (defun test-binding-generator ()
   (let* ((path (asdf:system-relative-pathname :lwlgl/bindgen
@@ -74,7 +136,49 @@
                     (lwlgl.opengl::blue :float)
                     (lwlgl.opengl::alpha :float))
                   (getf metadata :arguments)))
-    (check (>= (length (lwlgl.opengl:registered-gl-functions)) 90))))
+    (check (>= (length (lwlgl.opengl:registered-gl-functions)) 90))
+    (multiple-value-bind (raw status) (find-symbol "NGL-CLEAR-COLOR" :lwlgl.opengl.gl46)
+      (check (eq :external status))
+      (check (fboundp raw)))
+    (multiple-value-bind (constant status) (find-symbol "+GL-COLOR-BUFFER-BIT+"
+                                                         :lwlgl.opengl.gl46)
+      (check (eq :external status))
+      (check (= #x4000 (symbol-value constant))))))
+
+(defun %external-function-p (name package)
+  (multiple-value-bind (symbol status) (find-symbol name package)
+    (and (eq status :external) (fboundp symbol))))
+
+(defun test-lwjgl-api-surface ()
+  (check (%external-function-p "GLFW-INIT" :lwlgl.glfw.glfw34))
+  (check (%external-function-p "NGLFW-INIT" :lwlgl.glfw.glfw34))
+  (check (%external-function-p "AL-SOURCE-PLAY" :lwlgl.openal.al11))
+  (check (%external-function-p "NAL-SOURCE-PLAY" :lwlgl.openal.al11))
+  (check (%external-function-p "CL-GET-PLATFORM-IDS" :lwlgl.opencl.cl30))
+  (check (%external-function-p "NCL-GET-PLATFORM-IDS" :lwlgl.opencl.cl30))
+  (check (%external-function-p "VK-GET-INSTANCE-PROC-ADDR" :lwlgl.vulkan.vk14))
+  (check (%external-function-p "NVK-GET-INSTANCE-PROC-ADDR" :lwlgl.vulkan.vk14))
+  (check (%external-function-p "EGL-GET-DISPLAY" :lwlgl.egl.egl15))
+  (check (%external-function-p "NEGL-GET-DISPLAY" :lwlgl.egl.egl15))
+  (check (%external-function-p "GL-CLEAR" :lwlgl.opengles.gles32))
+  (check (%external-function-p "NGL-CLEAR" :lwlgl.opengles.gles32))
+  (check (%external-function-p "NGL-CLEAR" :lwlgl.opengl.gl11))
+  (check (%external-function-p "NGL-BUFFER-DATA" :lwlgl.opengl.gl15))
+  (multiple-value-bind (symbol status) (find-symbol "NGL-BUFFER-DATA" :lwlgl.opengl.gl14)
+    (declare (ignore symbol))
+    (check (null status)))
+  (let* ((pointer (cffi:make-pointer 42))
+         (provider (lwlgl.core:make-function-provider
+                    :name :fake-gles :resolver (lambda (name)
+                                                 (declare (ignore name)) pointer)))
+         (capabilities (lwlgl.opengles:create-capabilities :provider provider)))
+    (check (lwlgl.opengles:gl-function-available-p "glClear" capabilities))
+    (check (= 42 (cffi:pointer-address
+                  (lwlgl.core:capability-function-pointer capabilities "glClear"))))
+    (check (lwlgl.openal:al-capabilities-p
+            (lwlgl.openal:create-capabilities :provider provider)))
+    (check (lwlgl.opencl:cl-capabilities-p
+            (lwlgl.opencl:create-capabilities :provider provider)))))
 
 (defun test-module-registry ()
   (let ((lwlgl.core:*native-bundle-roots* nil))
@@ -88,7 +192,7 @@
 
 (defun test-platform ()
   (check (member (lwlgl.core:platform) '(:windows :macos :linux :unknown)))
-  (check (string= "0.5.0" lwlgl.core:*lwlgl-version*)))
+  (check (string= "1.0.0" lwlgl.core:*lwlgl-version*)))
 
 (defun test-vectors ()
   (let* ((a (lwlgl.math:vec3 1 2 3))
@@ -256,9 +360,12 @@ f 1/1 2/2 3/3 4/4
   (setf *failures* 0 *checks* 0)
   (test-native-buffer)
   (test-native-memory-views-and-arena)
+  (test-lwjgl-style-memory)
   (test-runtime-configuration)
+  (test-dispatch-runtime)
   (test-binding-generator)
   (test-opengl-binding-metadata)
+  (test-lwjgl-api-surface)
   (test-module-registry)
   (test-platform)
   (test-vectors)
